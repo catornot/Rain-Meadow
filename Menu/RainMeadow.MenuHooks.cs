@@ -326,6 +326,10 @@ namespace RainMeadow
             {
                 self.currentMainLoop = new LobbyMenu(self);
             }
+            if (ID == Ext_ProcessID.CtfLobbyMenu)
+            {
+                self.currentMainLoop = new CTFLobbyMenu(self);
+            }
 
 #if !LOCAL_P2P
             if (ID == ProcessManager.ProcessID.IntroRoll)
