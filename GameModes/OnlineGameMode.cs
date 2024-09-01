@@ -90,12 +90,17 @@ namespace RainMeadow
             return false;
         }
 
-        public virtual bool ShouldSyncObjectInWorld(WorldSession ws, AbstractPhysicalObject apo)
+        public virtual bool ShouldRegisterAPO(OnlineResource resource, AbstractPhysicalObject apo)
         {
             return true;
         }
 
-        public virtual bool ShouldSyncObjectInRoom(RoomSession rs, AbstractPhysicalObject apo)
+        public virtual bool ShouldSyncAPOInWorld(WorldSession ws, AbstractPhysicalObject apo)
+        {
+            return true;
+        }
+
+        public virtual bool ShouldSyncAPOInRoom(RoomSession rs, AbstractPhysicalObject apo)
         {
             return true;
         }
@@ -128,7 +133,6 @@ namespace RainMeadow
         internal virtual void NewEntity(OnlineEntity oe, OnlineResource inResource)
         {
 
-
         }
 
         internal virtual void AddAvatarSettings()
@@ -147,7 +151,6 @@ namespace RainMeadow
 
         internal virtual void ResourceAvailable(OnlineResource onlineResource)
         {
-
 
         }
 
@@ -169,9 +172,9 @@ namespace RainMeadow
         {
 
         }
+
         internal virtual void PlayerLeftLobby(OnlinePlayer player)
         {
-
 
         }
 
@@ -183,29 +186,17 @@ namespace RainMeadow
         internal virtual void LobbyTick(uint tick)
         {
 
-
         }
 
         internal virtual void Customize(Creature creature, OnlineCreature oc)
         {
-            if (lobby.playerAvatars.Any(a => a.Value == oc.id))
             if (lobby.playerAvatars.Any(a => a.Value == oc.id))
             {
                 RainMeadow.Debug($"Customizing avatar {creature} for {oc.owner}");
                 var settings = lobby.activeEntities.First(em => em is ClientSettings avs && avs.avatarId == oc.id) as ClientSettings;
 
                 // this adds the entry in the CWT
-                var mcc = RainMeadow.creatureCustomizations.GetValue(creature, (c) => settings.MakeCustomization());
-
-                // todo one day come back to making emote support universal
-                //if (oc.TryGetData<MeadowCreatureData>(out var mcd))
-                //{
-                //    EmoteDisplayer.map.GetValue(creature, (c) => new EmoteDisplayer(creature, oc, mcd, mcc));
-                //}
-                //else
-                //{
-                //    RainMeadow.Error("missing mcd?? " + oc);
-                //}
+                RainMeadow.creatureCustomizations.GetValue(creature, (c) => settings.MakeCustomization());
             }
         }
     }
