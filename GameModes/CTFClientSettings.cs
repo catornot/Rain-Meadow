@@ -16,23 +16,30 @@ namespace RainMeadow
             }
         }
 
+        public enum SlugTeam
+        {
+            Unassigned,
+            Red,
+            Blue,
+        }
+
         public Color bodyColor;
-        public Color eyeColor; // unused
+        public Color eyeColor;
         public bool readyForWin;
         public string? myLastDenPos = null;
         public bool isDead;
-        public bool isRedTeam;
+        public SlugTeam team = SlugTeam.Unassigned;
 
         public CTFClientSettings(Definition entityDefinition, OnlineResource inResource, State initialState) : base(entityDefinition, inResource, initialState)
         {
-            bodyColor = isRedTeam ? Color.red : Color.blue;
-            eyeColor = PlayerGraphics.DefaultSlugcatColor(isRedTeam ? SlugcatStats.Name.White : SlugcatStats.Name.Red);
+            bodyColor = team == SlugTeam.Red ? Color.red : Color.blue;
+            eyeColor = PlayerGraphics.DefaultSlugcatColor(team == SlugTeam.Red ? SlugcatStats.Name.White : SlugcatStats.Name.Red);
         }
 
         public CTFClientSettings(EntityId id, OnlinePlayer owner) : base(id, owner)
         {
-            bodyColor = isRedTeam ? Color.red : Color.blue;
-            eyeColor = PlayerGraphics.DefaultSlugcatColor(isRedTeam ? SlugcatStats.Name.White : SlugcatStats.Name.Red);
+            bodyColor = team == SlugTeam.Red ? Color.red : Color.blue;
+            eyeColor = PlayerGraphics.DefaultSlugcatColor(team == SlugTeam.Red ? SlugcatStats.Name.White : SlugcatStats.Name.Red);
         }
 
         internal override EntityDefinition MakeDefinition(OnlineResource onlineResource)
@@ -67,16 +74,16 @@ namespace RainMeadow
             [OnlineField(group = "game")]
             public bool isDead;
             [OnlineField(group = "game")]
-            public bool isRedTeam;
+            public int team;
 
             public State() { }
             public State(CTFClientSettings onlineEntity, OnlineResource inResource, uint ts) : base(onlineEntity, inResource, ts)
             {
-                bodyColor = onlineEntity.bodyColor;
-                eyeColor = onlineEntity.eyeColor;
+                bodyColor = onlineEntity.team == SlugTeam.Red ? Color.red : Color.blue;
+                eyeColor = PlayerGraphics.DefaultSlugcatColor(onlineEntity.team == SlugTeam.Red ? SlugcatStats.Name.White : SlugcatStats.Name.Red);
                 readyForWin = onlineEntity.readyForWin;
                 isDead = onlineEntity.isDead;
-                isRedTeam = onlineEntity.isRedTeam;
+                team = (int)onlineEntity.team;
             }
 
             public override void ReadTo(OnlineEntity onlineEntity)
@@ -87,7 +94,7 @@ namespace RainMeadow
                 avatarSettings.eyeColor = eyeColor;
                 avatarSettings.readyForWin = readyForWin;
                 avatarSettings.isDead = isDead;
-                avatarSettings.isRedTeam = isRedTeam;
+                avatarSettings.team = (SlugTeam)team;
             }
         }
         public class SlugcatCustomization : AvatarCustomization

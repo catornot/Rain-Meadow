@@ -339,6 +339,10 @@ namespace RainMeadow
                     RPCs.MovePlayersToDeathScreen();
                 }
             }
+            else if (OnlineManager.lobby != null && OnlineManager.lobby.gameMode is CTFGameMode) // me when I am too lazy
+            {
+                CTFRoundHandler.RespawnSlugCat(self, OnlineManager.lobby.gameMode.avatar.creature);
+            }
             else
             {
                 orig(self);

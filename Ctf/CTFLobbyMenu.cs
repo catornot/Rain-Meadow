@@ -83,14 +83,9 @@ namespace RainMeadow
             if (OnlineManager.lobby == null || !OnlineManager.lobby.isActive) return;
             manager.arenaSitting = null;
 
-            string spawnShelterRoomStr = (OnlineManager.lobby.gameMode as CTFGameMode).ctfClientSettings.isRedTeam ? "HI_A20" : "HI_S05";
-
-            int spawnShelterRoom = RainWorld.roomNameToIndex.TryGetValue(spawnShelterRoomStr, out var val) ? val : -1;
-            RainMeadow.Debug("spawnShelterRoom is " + spawnShelterRoom);
-
-
+            CTFRoundHandler.SelectTeam();
             // manager.rainWorld.progression.ClearOutSaveStateFromMemory();
-            MeadowProgression.progressionData.currentCharacterProgress.saveLocation = new WorldCoordinate(spawnShelterRoom, -1, -1, 0);
+            MeadowProgression.progressionData.currentCharacterProgress.saveLocation = CTFRoundHandler.SelectRespawnRoom(OnlineManager.lobby.gameMode.clientSettings as CTFClientSettings);
             manager.menuSetup.startGameCondition = ProcessManager.MenuSetup.StoryGameInitCondition.RegionSelect;
             //manager.menuSetup.startGameCondition = ProcessManager.MenuSetup.StoryGameInitCondition.New; // hmmmmmm? New game just doesn't care about savelocation. noted!
             manager.menuSetup.regionSelectRoom = MeadowProgression.progressionData.currentCharacterProgress.saveLocation.ResolveRoomName();

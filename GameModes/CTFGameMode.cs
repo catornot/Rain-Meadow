@@ -10,8 +10,9 @@ namespace RainMeadow
         private static HashSet<PlacedObject.Type> ItemBlackList = new HashSet<PlacedObject.Type>
         {
             PlacedObject.Type.DangleFruit,
-            PlacedObject.Type.BubbleGrass,
-            PlacedObject.Type.VultureGrub
+            PlacedObject.Type.DeadHazer,
+            PlacedObject.Type.VultureGrub,
+            PlacedObject.Type.DeadVultureGrub,
         };
         public CTFClientSettings ctfClientSettings => clientSettings as CTFClientSettings;
 
@@ -22,11 +23,12 @@ namespace RainMeadow
 
         public override bool AllowedInMode(PlacedObject item)
         {
-            return (
-                OnlineGameModeHelpers.PlayerGrablableItems.Contains(item.type) ||
-                OnlineGameModeHelpers.creatureRelatedItems.Contains(item.type) ||
-                OnlineGameModeHelpers.cosmeticItems.Contains(item.type)
-            ) && !ItemBlackList.Contains(item.type);
+            //return (
+            //    OnlineGameModeHelpers.PlayerGrablableItems.Contains(item.type) ||
+            //    OnlineGameModeHelpers.creatureRelatedItems.Contains(item.type) ||
+            //    OnlineGameModeHelpers.cosmeticItems.Contains(item.type)
+            //) && !ItemBlackList.Contains(item.type);
+            return !ItemBlackList.Contains(item.type);
         }
         public override bool ShouldSpawnRoomItems(RainWorldGame game, RoomSession roomSession)
         {
@@ -69,17 +71,6 @@ namespace RainMeadow
 
         public override AbstractCreature SpawnAvatar(RainWorldGame self, WorldCoordinate location)
         {
-            string spawnShelterRoomStr = ctfClientSettings.isRedTeam ? "HI_A20" : "HI_S05";
-
-            int spawnShelterRoom = RainWorld.roomNameToIndex.TryGetValue(spawnShelterRoomStr, out var val) ? val : -1;
-            RainMeadow.Debug("spawnShelterRoom is " + spawnShelterRoom);
-
-
-            MeadowProgression.progressionData.currentCharacterProgress.saveLocation = new WorldCoordinate(spawnShelterRoom, -1, -1, 0);
-            self.manager.menuSetup.startGameCondition = ProcessManager.MenuSetup.StoryGameInitCondition.RegionSelect;
-            self.manager.menuSetup.regionSelectRoom = MeadowProgression.progressionData.currentCharacterProgress.saveLocation.ResolveRoomName();
-            self.manager.RequestMainProcessSwitch(ProcessManager.ProcessID.Game);
-
             return null; // game runs default code
         }
 
