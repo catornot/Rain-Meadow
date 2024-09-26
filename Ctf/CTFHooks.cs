@@ -23,8 +23,12 @@ namespace RainMeadow
 
         bool Weapon_HitThisObject(On.Weapon.orig_HitThisObject orig, Weapon self, PhysicalObject obj)
         {
+
             // TODO: add team based collision
-            return (OnlineManager.lobby.gameMode is CTFGameMode && obj is Player && self is Spear && self.thrownBy != null && self.thrownBy is Player) || orig(self, obj);
+            bool yes = (OnlineManager.lobby.gameMode is CTFGameMode && obj is Player && self is Spear && self.thrownBy != null && self.thrownBy is Player) || orig(self, obj);
+            RainMeadow.Debug("tried hitting " + obj + " with " + self + " got " + yes);
+
+            return yes;
         }
 
         public void ctf_RegionGate_ctor(On.RegionGate.orig_ctor orig, RegionGate self, Room room)

@@ -39,12 +39,17 @@ namespace RainMeadow
             return worldSession.owner == null || worldSession.isOwner;
         }
 
-        public override bool ShouldSyncObjectInWorld(WorldSession ws, AbstractPhysicalObject apo)
+        public virtual bool ShouldRegisterAPO(OnlineResource resource, AbstractPhysicalObject apo)
         {
             return true;
         }
 
-        public override bool ShouldSyncObjectInRoom(RoomSession rs, AbstractPhysicalObject apo)
+        public virtual bool ShouldSyncAPOInWorld(WorldSession ws, AbstractPhysicalObject apo)
+        {
+            return true;
+        }
+
+        public virtual bool ShouldSyncAPOInRoom(RoomSession rs, AbstractPhysicalObject apo)
         {
             return true;
         }
