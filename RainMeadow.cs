@@ -188,6 +188,7 @@ namespace RainMeadow
                 ArenaHooks();
                 ItemHooks();
                 ObjectHooks();
+                CTFHooks();
 
                 MeadowMusic.EnableMusic();
 
