@@ -107,6 +107,7 @@ namespace RainMeadow
 
             game.world.ActivateRoom(newRoom);
 
+            /*
             if (playerRoom != null)
             {
                 if (!state.permaDead)
@@ -126,6 +127,10 @@ namespace RainMeadow
             newRoom.AddEntity(absPlayer);
             newRoom.realizedRoom.AddObject(player);
             absPlayer.pos = newRoom.realizedRoom.LocalCoordinateOfNode(0);
+            */
+
+            // I give up
+            JollyCoop.JollyCustom.WarpAndRevivePlayer(absPlayer, newRoom, worldPos);
 
             // set perma death last
             state.permaDead = false;

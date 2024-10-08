@@ -66,6 +66,8 @@ namespace RainMeadow
 
         public override SlugcatStats.Name LoadWorldAs(RainWorldGame game)
         {
+            game.manager.rainWorld.options.friendlyFire = true;
+            game.manager.rainWorld.options.friendlySteal = true;
             return SlugcatStats.Name.Red;
         }
 
@@ -141,7 +143,6 @@ namespace RainMeadow
 
         internal override void LobbyTick(uint tick)
         {
-
 
         }
 
