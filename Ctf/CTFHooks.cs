@@ -13,14 +13,13 @@ namespace RainMeadow
         private void CTFHooks()
         {
             On.Spear.HitSomething += Spear_HitSomething;
-            On.Weapon.HitThisObject += Weapon_HitThisObject;
+            On.Weapon.HitThisObject += CTF_Weapon_HitThisObject;
             On.RegionGate.ctor += ctf_RegionGate_ctor;
         }
 
         bool Spear_HitSomething(On.Spear.orig_HitSomething orig, Spear self, SharedPhysics.CollisionResult result, bool eu)
         {
             bool origResult = orig(self, result, eu);
-            RainMeadow.Debug("tried hitting obj" + result.obj + " with " + (self is Spear) + " got " + origResult);
             if (!origResult && result.hitSomething
                 && OnlineManager.lobby != null
                 && OnlineManager.lobby.gameMode is CTFGameMode
@@ -32,7 +31,6 @@ namespace RainMeadow
                 && playerHit.SpearStick(self, Mathf.Lerp(0.55f, 0.62f, UnityEngine.Random.value), result.chunk, result.onAppendagePos, self.firstChunk.vel)
             )
             {
-                RainMeadow.Debug("hit pls");
                 self.room.PlaySound(SoundID.Spear_Stick_In_Creature, self.firstChunk);
                 self.LodgeInCreature(result, eu);
                 self.abstractPhysicalObject.world.game.GetArenaGameSession.PlayerLandSpear(self.thrownBy as Player, self.stuckInObject as Creature);
@@ -40,21 +38,13 @@ namespace RainMeadow
                 return true;
             }
 
-            RainMeadow.Debug("hit 1 " + self.thrownBy != null && self.thrownBy is Player);
-            RainMeadow.Debug("hit 2 " + result.obj != null && result.obj is Player);
-            RainMeadow.Debug("hit 3 " + result.hitSomething);
-
             return origResult;
         }
 
-        bool Weapon_HitThisObject(On.Weapon.orig_HitThisObject orig, Weapon self, PhysicalObject obj)
+        bool CTF_Weapon_HitThisObject(On.Weapon.orig_HitThisObject orig, Weapon self, PhysicalObject obj)
         {
             return (OnlineManager.lobby != null && OnlineManager.lobby.gameMode is CTFGameMode) || orig(self, obj);
             // TODO: add team based collision
-            bool yes = (OnlineManager.lobby.gameMode is CTFGameMode && obj is Player && self is Spear && self.thrownBy != null && self.thrownBy is Player) || orig(self, obj);
-            RainMeadow.Debug("tried hitting " + obj + " with " + self + " got " + yes);
-
-            return yes;
         }
 
         public void ctf_RegionGate_ctor(On.RegionGate.orig_ctor orig, RegionGate self, Room room)
