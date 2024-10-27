@@ -56,5 +56,36 @@ namespace RainMeadow
                 self.unlocked = false;
             }
         }
+
+        private void ctf_RainWorldGame_GoToDeathScreen(On.RainWorldGame.orig_GoToDeathScreen orig, RainWorldGame self)
+        {
+            if (OnlineManager.lobby != null && OnlineManager.lobby.gameMode is CTFGameMode)
+            {
+                foreach (var value in OnlineManager.lobby.playerAvatars)
+                {
+                    if (!value.Key.isMe)
+                        continue;
+
+                    CTFRoundHandler.RespawnSlugCat(self, (AbstractCreature)((OnlinePhysicalObject)value.Value.FindEntity(true)).apo);
+                    break;
+                }
+            }
+            else
+            {
+                orig(self);
+            }
+        }
+
+        private void ctf_RainWorldGame_Win(On.RainWorldGame.orig_Win orig, RainWorldGame self, bool malnourished)
+        {
+            if (OnlineManager.lobby != null && OnlineManager.lobby.gameMode is CTFGameMode)
+            {
+                // no wining
+            }
+            else
+            {
+                orig(self, malnourished);
+            }
+        }
     }
 }

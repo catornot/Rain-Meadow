@@ -390,10 +390,6 @@ namespace RainMeadow
             {
                 self.currentMainLoop = new StoryMenu(self);
             }
-            if (ID == Ext_ProcessID.LobbyMenu)
-            {
-                self.currentMainLoop = new LobbyMenu(self);
-            }
             if (ID == Ext_ProcessID.CtfLobbyMenu)
             {
                 self.currentMainLoop = new CTFLobbyMenu(self);

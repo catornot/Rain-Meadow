@@ -13,12 +13,14 @@ namespace RainMeadow
             public static OnlineGameModeType Meadow = new("Meadow", true);
             public static OnlineGameModeType Story = new("Story", true);
             public static OnlineGameModeType ArenaCompetitive = new("ArenaCompetitive", true);
+            public static OnlineGameModeType Ctf = new("Idk", true);
 
             public static Dictionary<OnlineGameModeType, string> descriptions = new()
             {
                 { Meadow, "A peaceful mode about exploring around and discovering little secrets, together or on\nyour own." },
                 { Story, "Adventure together with friends in the world of Rain World, fight together and die\ntogether." },
                 { ArenaCompetitive, "You sweaty bastards." },
+                { Ctf, "Waiter! Waiter! More capture the flag please!!" }
             };
         }
 
@@ -27,6 +29,7 @@ namespace RainMeadow
             { OnlineGameModeType.Meadow, typeof(MeadowGameMode) },
             { OnlineGameModeType.Story, typeof(StoryGameMode) },
             { OnlineGameModeType.ArenaCompetitive, typeof(ArenaCompetitiveGameMode) },
+            { OnlineGameModeType.Ctf, typeof(CTFGameMode) },
         };
 
         public static OnlineGameMode FromType(OnlineGameModeType onlineGameModeType, Lobby lobby)
