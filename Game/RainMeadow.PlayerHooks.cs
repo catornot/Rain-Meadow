@@ -140,10 +140,11 @@ public partial class RainMeadow
 
         if (OnlineManager.lobby != null)
         {
-            if ((self.Template.type == CreatureTemplate.Type.Slugcat || OnlineManager.lobby.gameMode is MeadowGameMode)
-                && RainMeadow.creatureCustomizations.TryGetValue(self, out var custom))
+            if (RainMeadow.creatureCustomizations.TryGetValue(self, out var custom))
             {
-                return custom.GetBodyColor();
+                var color = orig(self);
+                custom.ModifyBodyColor(ref color);
+                return color;
             }
         }
         return orig(self);
@@ -498,7 +499,7 @@ public partial class RainMeadow
                 i => i.MatchBrtrue(out skip)
                 );
             c.Emit(OpCodes.Ldarg_0);
-            c.EmitDelegate((PhysicalObject otherObject) => (isStoryMode(out var story) && story.friendlyFire && otherObject is Player));
+            c.EmitDelegate((PhysicalObject otherObject) => isStoryMode(out var story) && !story.friendlyFire && otherObject is Player);
             c.Emit(OpCodes.Brtrue, skip);
         }
         catch (Exception e)
@@ -509,7 +510,7 @@ public partial class RainMeadow
 
     private bool Player_SlugSlamConditions(On.Player.orig_SlugSlamConditions orig, Player self, PhysicalObject otherObject)
     {
-        if (isStoryMode(out var story) && story.friendlyFire)
+        if (isStoryMode(out var story) && !story.friendlyFire)
         {
             if (otherObject is Player) return false;
         }
@@ -546,7 +547,7 @@ public partial class RainMeadow
 
     private bool Player_CanMaulCreature(On.Player.orig_CanMaulCreature orig, Player self, Creature crit)
     {
-        if (isStoryMode(out var story) && story.friendlyFire)
+        if (isStoryMode(out var story) && !story.friendlyFire)
         {
             if (crit is Player) return false;
         }

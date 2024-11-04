@@ -31,6 +31,7 @@ namespace RainMeadow
 
         private int holdPlayerPosition;
         private int currentPlayerPosition;
+        private bool initiatedStartGameForClient;
         public List<SlugcatStats.Name> allSlugs;
 
 
@@ -69,7 +70,7 @@ namespace RainMeadow
 
             MatchmakingManager.instance.OnPlayerListReceived += OnlineManager_OnPlayerListReceived;
             //SetupCharacterCustomization();
-
+            initiatedStartGameForClient = false;
 
         }
 
@@ -141,11 +142,9 @@ namespace RainMeadow
 
         private void BindSettings()
         {
-            this.personaSettings = (OnlineManager.lobby.gameMode as ArenaCompetitiveGameMode).avatarSettings;
-            personaSettings.bodyColor = RainMeadow.rainMeadowOptions.BodyColor.Value;
-            personaSettings.eyeColor = RainMeadow.rainMeadowOptions.EyeColor.Value;
-            personaSettings.playingAs = SlugcatStats.Name.White;
-            arena.arenaClientSettings.playingAs = personaSettings.playingAs;
+            arena.avatarSettings.eyeColor = RainMeadow.rainMeadowOptions.EyeColor.Value;
+            arena.avatarSettings.bodyColor = RainMeadow.rainMeadowOptions.BodyColor.Value;
+            arena.avatarSettings.playingAs = SlugcatStats.Name.White;
         }
 
         void BuildLayout()
@@ -283,6 +282,11 @@ namespace RainMeadow
         private void StartGame()
         {
             RainMeadow.DebugMe();
+            if (initiatedStartGameForClient) // no double clicking while I'm pulling you in
+            {
+                return;
+            }
+            
             if (OnlineManager.lobby == null || !OnlineManager.lobby.isActive) return;
 
             if (OnlineManager.lobby.isOwner && this.GetGameTypeSetup.playList != null && this.GetGameTypeSetup.playList.Count == 0)
@@ -348,6 +352,14 @@ namespace RainMeadow
             if (this.totalClientsReadiedUpOnPage != null)
             {
                 UpdateReadyUpLabel();
+            }
+
+            if (arena.allPlayersReadyLockLobby && arena.isInGame && arena.arenaSittingOnlineOrder.Contains(OnlineManager.mePlayer.inLobbyId) && !OnlineManager.lobby.isOwner && !initiatedStartGameForClient)  // time to go
+            {
+                this.StartGame();
+                initiatedStartGameForClient = true;
+
+
             }
 
             if (this.playButton != null)
@@ -539,7 +551,7 @@ namespace RainMeadow
             meClassButton = new ArenaOnlinePlayerJoinButton(this, pages[0], new Vector2(600f + 0 * num3, 500f) + new Vector2(106f, -20f) + new Vector2((num - 120f) / 2f, 0f) - new Vector2((num3 - 120f), 40f), 0);
             meClassButton.buttonBehav.greyedOut = false;
             meClassButton.readyForCombat = true;
-            var currentColorIndex = 0;
+            int currentColorIndex;
             if (arena.playersInLobbyChoosingSlugs.TryGetValue(OnlineManager.mePlayer.id.name, out var existingValue))
             {
                 currentColorIndex = arena.playersInLobbyChoosingSlugs[OnlineManager.mePlayer.id.name];
@@ -582,8 +594,8 @@ namespace RainMeadow
                 meClassButton.portrait.sprite.SetElementByName(meClassButton.portrait.fileName);
                 PlaySound(SoundID.MENU_Button_Standard_Button_Pressed);
 
-                personaSettings.playingAs = allSlugs[currentColorIndex];
-                arena.arenaClientSettings.playingAs = personaSettings.playingAs;
+                arena.avatarSettings.playingAs = allSlugs[currentColorIndex];
+                arena.arenaClientSettings.playingAs = arena.avatarSettings.playingAs;
 
                 if (OnlineManager.players.Count > 1 && !arena.allPlayersReadyLockLobby) // stop unnecessary RPCs
                 {
@@ -598,8 +610,13 @@ namespace RainMeadow
                 }
 
                 arena.playersInLobbyChoosingSlugs[OnlineManager.mePlayer.id.name] = currentColorIndex;
+
+
             };
             pages[0].subObjects.Add(meClassButton);
+            arena.avatarSettings.playingAs = allSlugs[currentColorIndex];
+            arena.arenaClientSettings.playingAs = arena.avatarSettings.playingAs;
+
         }
 
         private void AddMeUsername()
@@ -729,14 +746,12 @@ namespace RainMeadow
 
             pages[0].subObjects.Add(bodyColor);
             pages[0].subObjects.Add(eyeColor);
-
-
         }
 
         private void ColorPicker_OnValueChangedEvent()
         {
-            if (personaSettings != null) personaSettings.bodyColor = bodyColorPicker.valuecolor;
-            if (personaSettings != null) personaSettings.eyeColor = eyeColorPicker.valuecolor;
+            personaSettings.bodyColor = Extensions.SafeColorRange(bodyColorPicker.valuecolor);
+            personaSettings.eyeColor = Extensions.SafeColorRange(eyeColorPicker.valuecolor);
         }
 
         private void UpdateReadyUpLabel()
