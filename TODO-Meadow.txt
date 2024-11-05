@@ -1,27 +1,3 @@
-
-what are the player-player interactions?
-- spot eachother
-- greet eachother
-- greet others
-- decide on what to do
-	- likely want to go somewhere, what other options
-	- echo-hunting
-	- go to one of the extremes of the map
-		- pebbles, moon, SI or Depths
-	- games
-		- hide and seek
-- decide on where to go
-	- a direction, a landmark, something unambiguous
-	- anywhere
-	- follow me, follow the leader
-
-- move together
-- spot things, comment on things
-- tell others to come over here
-- tell others to go back, not come
-
-disable spawning things that aren't avatar
-
 handholding
 	would be so nice to grab cicada be carried by liz etc etc
 	"it's of uttermost importance to me that one cannot troll others with this"
@@ -32,83 +8,85 @@ handholding
 			Sky has both, with the invite system, but also the "follow"->"hold hand"
 
 creature todo
-- call prototype
-	meow knock zip bzz
-- remove collisions ?
 - can get stuck
 	some rooms will get fixed
 		eventually :tm:
-	need to sort out water movement first before determining what's trully inaccessible
-- allow creature to change the creature-pipe they're going to mid-flight
-- need to sample color of creature and have it in skindata
-	- requires final-ish seeds
-- lightsource for dark areas
-- water controls for lizard and scav etc
-	needs to be there, crossing DS etc
-	SU_A12
-	I think the pathing logic breaks, water "isn't accessible" but it is. Istileaccessibletocreature accounts for it, some of my logic might not
+- allow creature to change the creature-pipe they're going to mid-flight (very low prio)
+- creatures not cleared on enter creature pipe
+	game clears enteringshortcut so they "abort entering" most of the time?
+	could also be that npcdestination is null so they just bounce?
+- eggbug and lanternmouse are way too fast in zerog
+
 
 lizard todo
-- sometimes fails to grab poles when holding up
-- cyan-jump from any state
-- find a good seed for our buddies
+	blues have trouble sticking to the ceiling
+	blues have trouble climbing/pathing ledges
+	lizard wallclimb is slow, slows you down a lot in zerog movement
+	red and some more lizs are having trouble climbing
+
 
 scav todo
-- movement tends to overshoot
-- leap sometimes goes up/back
-- hands look silly when walking on falsefloor
-- jumping off ledge wack because regains footing too quick?
-	
-slugcat in meadow mode
-- point things
-
-squidcicada todo
-button for spin/dance ?
-remove charge ?
-
-eggbug
-	pick seeds and names
-
-noot
-	pick seeds and names
-
-lantermouse
-	jump too small
-	seeds and names
+	scav climbpos doesn't sync
+	pointing doesn't let go once let go?
+	scav latching to pole with lots of momentum lets go? shelter room to drainage spot
+	scav has trouble walljumping, doesn't count as walljumpable sometimes, hic02 lower spot (check?)
 
 
-controller-disconnedted popup might be inconsistent
+noot todo
+	noot gets stuck on water surface, seems to always go left?
 
-visualize selected skin
-	will get color previews
-	but could have tiny screenshots
-
-tint implementation missing in most creatures
-eggbug collapses on room transition (wolfy dms has logs)
-
-eggbug feels slow
-eggbug should have super jump at all times not just pounce, match how jumpy they are in game
-
-noodle has hard time going into pipes
-noodle could have a "grounded" state like cada
-
-"creature emotions" need addressing
-lizards shouldn't open mouth to bite
-rats shouldn't panic
-
-creature select can be inconsistent at times: I have big noodlefly selected, i enter the game, i'm small, i log off and click big again, now i'm big
-
-emote preview background color is really bad right now
-
-emote keybind not rebindable
-
-emote mapping on keyboard 1 throug 8 missing
-
-sandbox unlock items still present in meadow lmao
-
-passage but the map isn't saving
 
 following others around is hard
 	need map implemented
 	could use pipes flashing colors if room inhabited
 	player list on passage screen
+
+
+echo
+	echo sky animation is too slow needs to converge
+	echo reward anim is bad, fade to white is bad, no confetti??
+	echo tentacle bounces bet screens in long rooms
+	squid had trouble in dsb06 underwater poles?
+
+
+accessibility
+	ds a09, the crawlspace on left, creatures don't snap to crawling in it
+	ds c03 exist is at water height wont path
+	dsa13 corner up lizard stuck
+
+
+emotes
+	wish there was a symbol for outskirts
+	emotes go off-screen too often, need to show them in-screen near the creature when possible
+	emotes sometimes don't stop fading when new emotes are added
+	rotating arrow symbol resets to up on remote when client lets go
+	emote bg tint too strong, same for text
+
+customization
+	tints could blend in HSL, currently blends towards desat always because of the nature of the maths
+
+
+input
+	throw is for switching pages on hotwheel, but also call, specially on controller
+	rebindable keybinds for everything meadow
+		- controller emote input
+		- tab
+	- people don't like locking in place while pointing
+		// could combine with "look", after all just looking is kind of meh
+	- scav and scug don't stop pointing even when you let go of call
+
+
+gameplay
+	toggle collision as a setting
+	world state of onlineplayer is a lot of rot etc because no filters apply
+
+	music plays maybe too often
+		rethink triggers
+		maybe options
+
+
+menus
+	redo scavenger selectscreen
+	on meadow-menu or lobby menu, esc doesn't go back
+	backing out of passage screen sends you to main menu? unconfirmed but plausible
+

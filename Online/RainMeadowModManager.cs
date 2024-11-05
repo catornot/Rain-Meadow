@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -73,7 +72,9 @@ namespace RainMeadow
 
                 modApplyer.OnFinish += (ModApplier modApplyer) =>
                 {
-                    Utils.Restart($"+connect_lobby {MatchmakingManager.instance.GetLobbyID()}"); 
+                    RainMeadow.Debug("Finished applying");
+
+                    //Utils.Restart($"+connect_lobby {MatchmakingManager.instance.GetLobbyID()}"); 
 
                 };
             }

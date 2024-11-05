@@ -1,6 +1,4 @@
-﻿using System;
-using System.Linq;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 
 namespace RainMeadow
 {
@@ -20,7 +18,8 @@ namespace RainMeadow
         private OnlinePhysicalObject _b;
         public OnlinePhysicalObject b
         {
-            get {
+            get
+            {
                 if (_b == null) _b = B.FindEntity() as OnlinePhysicalObject;
                 return _b;
             }
@@ -41,10 +40,10 @@ namespace RainMeadow
             return $"{GetType()} - to {B}";
         }
 
-        public static AbstractObjStickRepr FromStick(AbstractPhysicalObject.AbstractObjectStick stick)
+        public static AbstractObjStickRepr? FromStick(AbstractPhysicalObject.AbstractObjectStick stick)
         {
             OnlinePhysicalObject b = null;
-            if(!OnlinePhysicalObject.map.TryGetValue(stick.A, out var a) || !OnlinePhysicalObject.map.TryGetValue(stick.B, out b))
+            if (!OnlinePhysicalObject.map.TryGetValue(stick.A, out var a) || !OnlinePhysicalObject.map.TryGetValue(stick.B, out b))
             {
                 RainMeadow.Error($"skipping stick because creatures not found online: {stick.A} {a} {stick.B} {b}");
                 return null;
@@ -62,7 +61,8 @@ namespace RainMeadow
                 case AbstractPhysicalObject.CreatureGripStick s:
                     return new CreatureGripStick(b, s);
                 default:
-                    throw new NotImplementedException(stick.ToString());
+                    RainMeadow.Error($"stick not implemented: {stick.ToString()}");
+                    return null;
             }
         }
 

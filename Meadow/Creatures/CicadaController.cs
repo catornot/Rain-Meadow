@@ -1,14 +1,14 @@
-﻿using System;
-using UnityEngine;
-using RWCustom;
+﻿using Mono.Cecil.Cil;
 using MonoMod.Cil;
-using Mono.Cecil.Cil;
+using RWCustom;
+using System;
+using UnityEngine;
 
 namespace RainMeadow
 {
     class CicadaController : AirCreatureController
     {
-        public CicadaController(Cicada creature, OnlineCreature oc, int playerNumber, MeadowAvatarCustomization customization) : base(creature, oc, playerNumber, customization) { }
+        public CicadaController(Cicada creature, OnlineCreature oc, int playerNumber, MeadowAvatarData customization) : base(creature, oc, playerNumber, customization) { }
 
         public Cicada cicada => creature as Cicada;
 
@@ -28,11 +28,28 @@ namespace RainMeadow
             On.Cicada.CarryObject += Cicada_CarryObject; // more realistic grab pos
             On.CicadaAI.Update += CicadaAI_Update; // dont let AI interfere on squiddy
 
+            On.CicadaPather.FollowPath += CicadaPather_FollowPath;
+
             IL.Cicada.Act += Cicada_Act1; // cicada pather gets confused about entering shortcuts, let our code handle that instead
                                           // also fix zerog
 
             // colors
             IL.CicadaGraphics.ApplyPalette += CicadaGraphics_ApplyPalette;
+        }
+
+        private static MovementConnection CicadaPather_FollowPath(On.CicadaPather.orig_FollowPath orig, CicadaPather self, WorldCoordinate originPos, bool actuallyFollowingThisPath)
+        {
+            if (creatureControllers.TryGetValue(self.creature.realizedCreature, out var c))
+            {
+                if (originPos == self.destination || (actuallyFollowingThisPath && self.lookingForImpossiblePath))
+                {
+                    if (Input.GetKey(KeyCode.L)) RainMeadow.Debug($"returning override {originPos} -> {self.destination}");
+                    return new MovementConnection(MovementConnection.MovementType.Standard, originPos, self.destination, 1);
+                }
+                return orig(self, originPos, actuallyFollowingThisPath);
+            }
+
+            return orig(self, originPos, actuallyFollowingThisPath);
         }
 
         private static void CicadaGraphics_ApplyPalette(ILContext il)
@@ -92,6 +109,10 @@ namespace RainMeadow
                 if (self.Consious)
                 {
                     self.Act();
+
+                    if (Input.GetKey(KeyCode.L)) RainMeadow.Debug("flying? " + self.flying);
+                    if (Input.GetKey(KeyCode.L)) RainMeadow.Debug("sitting? " + self.AtSitDestination);
+
                     if (self.Submersion == 1f)
                     {
                         self.flying = false;
@@ -101,6 +122,7 @@ namespace RainMeadow
                         }
                         self.waitToFlyCounter = 0; // so graphics uses wingdeployment
                     }
+                    return;
                 }
             }
             orig(self);
@@ -185,7 +207,8 @@ namespace RainMeadow
                 RainMeadow.Error(e);
                 throw;
             }
-            // patchup zerog
+
+            // patchup zerog/buoyancy
             c.Index = 0;
             while (c.TryGotoNext(MoveType.After,
                 i => (i.MatchMul() && i.Previous.MatchLdcR4(out _)) || i.MatchLdcR4(out _),
@@ -201,9 +224,24 @@ namespace RainMeadow
             {
                 c.Index -= 2;
                 c.Emit(OpCodes.Ldarg_0);
-                c.Emit<PhysicalObject>(OpCodes.Callvirt, "get_gravity");
+                c.EmitDelegate((Cicada self) => { return (1d / 0.9d) * self.gravity * (1f - self.Submersion); });
                 c.Emit(OpCodes.Mul);
-                c.Emit(OpCodes.Ldc_R4, (float)(1d / 0.9d));
+            }
+
+            c.Index = 0;
+            while (c.TryGotoNext(MoveType.After,
+                i => i.MatchLdflda<Vector2>("y"),
+                i => i.MatchDup(),
+                i => i.MatchLdindR4(),
+                i => i.MatchLdarg(0),
+                i => i.MatchCallOrCallvirt<PhysicalObject>("get_gravity"),
+                i => i.MatchAdd(),
+                i => i.MatchStindR4()
+                ))
+            {
+                c.Index -= 2;
+                c.Emit(OpCodes.Ldarg_0);
+                c.EmitDelegate((Cicada self) => { return (1f - self.Submersion); });
                 c.Emit(OpCodes.Mul);
             }
 
@@ -304,65 +342,66 @@ namespace RainMeadow
                 cicada.waitToFlyCounter = 30;
 
             bool preventStaminaRegen = false;
-            if (this.wantToThrow > 0) // dash charge
-            {
-                if (cicada.flying && !cicada.Charging && cicada.chargeCounter == 0 && cicada.stamina > 0.2f)
-                {
-                    if (localTrace) RainMeadow.Debug("Dash charge!");
-                    cicada.Charge(cicada.mainBodyChunk.pos + (this.inputDir == Vector2.zero ? (chunks[0].pos - chunks[1].pos) : this.inputDir) * 100f);
-                    this.wantToThrow = 0;
-                }
-            }
+            //if (this.wantToThrow > 0) // dash charge
+            //{
+            //    if (cicada.flying && !cicada.Charging && cicada.chargeCounter == 0 && cicada.stamina > 0.2f)
+            //    {
+            //        if (localTrace) RainMeadow.Debug("Dash charge!");
+            //        cicada.Charge(cicada.mainBodyChunk.pos + (this.inputDir == Vector2.zero ? (chunks[0].pos - chunks[1].pos) : this.inputDir) * 100f);
+            //        this.wantToThrow = 0;
+            //    }
+            //}
 
-            if (cicada.chargeCounter > 0) // charge windup or midcharge
-            {
-                if (localTrace) RainMeadow.Debug("charging");
-                cicada.stamina -= 0.008f;
-                preventStaminaRegen = true;
-                if (cicada.chargeCounter < 20)
-                {
-                    if (cicada.stamina <= 0.2f || !this.input[0].thrw) // cancel out if unable to complete
-                    {
-                        cicada.chargeCounter = 0;
-                    }
-                }
-                else
-                {
-                    if (cicada.stamina <= 0f) // cancel out mid charge if out of stamina (happens in long bouncy charges)
-                    {
-                        cicada.chargeCounter = 0;
-                    }
-                }
-                cicada.chargeDir = (cicada.chargeDir
-                                            + 0.15f * this.inputDir
-                                            + 0.03f * Custom.DirVec(cicada.bodyChunks[1].pos, cicada.mainBodyChunk.pos)).normalized;
+            //if (cicada.chargeCounter > 0) // charge windup or midcharge
+            //{
+            //    if (localTrace) RainMeadow.Debug("charging");
+            //    cicada.stamina -= 0.008f;
+            //    preventStaminaRegen = true;
+            //    if (cicada.chargeCounter < 20)
+            //    {
+            //        if (cicada.stamina <= 0.2f || !this.input[0].thrw) // cancel out if unable to complete
+            //        {
+            //            cicada.chargeCounter = 0;
+            //        }
+            //    }
+            //    else
+            //    {
+            //        if (cicada.stamina <= 0f) // cancel out mid charge if out of stamina (happens in long bouncy charges)
+            //        {
+            //            cicada.chargeCounter = 0;
+            //        }
+            //    }
+            //    cicada.chargeDir = (cicada.chargeDir
+            //                                + 0.15f * this.inputDir
+            //                                + 0.03f * Custom.DirVec(cicada.bodyChunks[1].pos, cicada.mainBodyChunk.pos)).normalized;
 
-                // hopefully won't be needing that in the meadows...
-                //if (cicada.Charging && cicada.grasps[0] != null && cicada.grasps[0].grabbed is Weapon w)
-                //{
-                //    SharedPhysics.CollisionResult result = SharedPhysics.TraceProjectileAgainstBodyChunks(null, cicada.room, w.firstChunk.lastPos, ref w.firstChunk.pos, w.firstChunk.rad, 1, cicada, true);
-                //    if (result.hitSomething)
-                //    {
-                //        var dir = (cicada.bodyChunks[0].pos - cicada.bodyChunks[1].pos).normalized;
-                //        var throwndir = new IntVector2(Mathf.Abs(dir.x) > 0.38 ? (int)Mathf.Sign(dir.x) : 0, Mathf.Abs(dir.y) > 0.38 ? (int)Mathf.Sign(dir.y) : 0);
-                //        w.Thrown(cicada, w.firstChunk.pos, w.firstChunk.lastPos, throwndir, 1f, cicada.evenUpdate);
-                //        if (w is Spear sp && !(result.obj is Player))
-                //        {
-                //            sp.spearDamageBonus *= 0.6f;
-                //            sp.setRotation = dir;
-                //        }
-                //        w.Forbid();
-                //        cicada.ReleaseGrasp(0);
-                //    }
-                //}
-            }
+            // hopefully won't be needing that in the meadows...
+            //if (cicada.Charging && cicada.grasps[0] != null && cicada.grasps[0].grabbed is Weapon w)
+            //{
+            //    SharedPhysics.CollisionResult result = SharedPhysics.TraceProjectileAgainstBodyChunks(null, cicada.room, w.firstChunk.lastPos, ref w.firstChunk.pos, w.firstChunk.rad, 1, cicada, true);
+            //    if (result.hitSomething)
+            //    {
+            //        var dir = (cicada.bodyChunks[0].pos - cicada.bodyChunks[1].pos).normalized;
+            //        var throwndir = new IntVector2(Mathf.Abs(dir.x) > 0.38 ? (int)Mathf.Sign(dir.x) : 0, Mathf.Abs(dir.y) > 0.38 ? (int)Mathf.Sign(dir.y) : 0);
+            //        w.Thrown(cicada, w.firstChunk.pos, w.firstChunk.lastPos, throwndir, 1f, cicada.evenUpdate);
+            //        if (w is Spear sp && !(result.obj is Player))
+            //        {
+            //            sp.spearDamageBonus *= 0.6f;
+            //            sp.setRotation = dir;
+            //        }
+            //        w.Forbid();
+            //        cicada.ReleaseGrasp(0);
+            //    }
+            //}
+            // }
 
             // scoooot
             cicada.AI.swooshToPos = null;
             if (this.input[0].jmp)
             {
                 if (localTrace) RainMeadow.Debug("jump input");
-                if (cicada.room.aimap.getTerrainProximity(cicada.mainBodyChunk.pos) > 1 && cicada.stamina > 0.5f) // cada.flying && 
+                // cicada.room.aimap.getTerrainProximity(cicada.mainBodyChunk.pos) > 1 &&  // we now allow to fly in 2-wide corridors Ig
+                if (cicada.stamina > 0.5f) // cada.flying && 
                 {
                     if (localTrace) RainMeadow.Debug("flight");
                     cicada.AI.swooshToPos = cicada.mainBodyChunk.pos + this.inputDir * 40f + new Vector2(0, 4f);
@@ -393,7 +432,7 @@ namespace RainMeadow
             var mag = dir.magnitude;
 
             (cicada.graphicsModule as CicadaGraphics).lookDir = dir.normalized * Mathf.Pow(mag, 0.5f) * 1.5f;
-            (cicada.graphicsModule as CicadaGraphics).lookRotation = - RWCustom.Custom.VecToDeg(dir);
+            (cicada.graphicsModule as CicadaGraphics).lookRotation = -RWCustom.Custom.VecToDeg(dir);
         }
 
         public override WorldCoordinate CurrentPathfindingPosition
@@ -443,6 +482,8 @@ namespace RainMeadow
         protected override void Moving(float magnitude)
         {
             cicada.AI.behavior = CicadaAI.Behavior.GetUnstuck; // helps with sitting behavior
+            var stuccker = cicada.AI.stuckTracker; // used while in climbing/pipe mode
+            stuccker.stuckCounter = (int)Mathf.Lerp(stuccker.minStuckCounter, stuccker.maxStuckCounter, magnitude * 0.7f);
         }
 
         protected override void OnCall()
@@ -459,6 +500,17 @@ namespace RainMeadow
                         limb.vel += (cicada.bodyChunks[0].pos - cicada.bodyChunks[1].pos) + (limb.pos - cicada.bodyChunks[0].pos);
                     }
                 }
+            }
+        }
+
+        protected override void PointImpl(Vector2 dir)
+        {
+            if (cicada.graphicsModule is CicadaGraphics cg)
+            {
+                Limb limb = cg.tentacles[0, 0];
+
+                limb.mode = Limb.Mode.HuntAbsolutePosition;
+                limb.absoluteHuntPos = cicada.DangerPos + dir * 100f;
             }
         }
     }

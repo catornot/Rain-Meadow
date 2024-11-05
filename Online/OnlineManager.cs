@@ -1,9 +1,6 @@
-﻿using System;
+﻿using Steamworks;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text.RegularExpressions;
-using Mono.Cecil;
-using Steamworks;
 using UnityEngine;
 
 namespace RainMeadow
@@ -13,7 +10,7 @@ namespace RainMeadow
     public class OnlineManager : MainLoopProcess
     {
         public static OnlineManager instance;
-        public static Serializer serializer = new Serializer(32000);
+        public static Serializer serializer = new Serializer(65536);
         public static List<ResourceSubscription> subscriptions;
         public static List<EntityFeed> feeds;
         public static Dictionary<OnlineEntity.EntityId, OnlineEntity> recentEntities;
@@ -35,9 +32,7 @@ namespace RainMeadow
             LeaveLobby();
             MatchmakingManager.instance.OnLobbyJoined += OnlineManager_OnLobbyJoined;
             RainMeadow.Debug("OnlineManager Created");
-
         }
-
 
         private void OnlineManager_OnLobbyJoined(bool ok, string error)
         {
@@ -45,6 +40,9 @@ namespace RainMeadow
             currentlyJoiningLobby = default;
             if (ok)
             {
+                manager.rainWorld.progression.Destroy();
+                manager.rainWorld.progression = new PlayerProgression(manager.rainWorld, tryLoad: true, saveAfterLoad: false);
+                manager.rainWorld.progression.Update();
                 // manager.RequestMainProcessSwitch(lobby.gameMode.MenuProcessId());
             }
             else
@@ -70,6 +68,10 @@ namespace RainMeadow
 
             mePlayer = new OnlinePlayer(mePlayer.id) { isMe = true };
             players = new List<OnlinePlayer>() { mePlayer };
+
+            instance.manager.rainWorld.progression.Destroy();
+            instance.manager.rainWorld.progression = new PlayerProgression(instance.manager.rainWorld, tryLoad: true, saveAfterLoad: false);
+            instance.manager.rainWorld.progression.Update();
         }
 
         public override void RawUpdate(float dt)
@@ -108,17 +110,22 @@ namespace RainMeadow
         {
             if (lobby != null)
             {
-                foreach (OnlinePlayer player in players)
-                {
-                    player.Update();
-                }
-
                 mePlayer.tick++;
                 ProcessSelfEvents();
+                ProcessDeferredEvents();
 
                 if (lobby.isActive)
                 {
                     lobby.Tick(mePlayer.tick);
+                }
+                else if (lobby.isAvailable)
+                {
+                    lobby.Activate();
+                }
+
+                foreach (OnlinePlayer player in players)
+                {
+                    player.Update();
                 }
 
                 // Prepare outgoing messages
@@ -131,6 +138,8 @@ namespace RainMeadow
                 {
                     feed.Update(mePlayer.tick);
                 }
+
+
 
                 // Outgoing messages
                 foreach (var player in players)
@@ -153,14 +162,37 @@ namespace RainMeadow
             }
         }
 
-        public static void ProcessSelfEvents()
+        public void ProcessSelfEvents()
         {
             // Stuff mePlayer set to itself, events from the distributed lease system
-            while (mePlayer.OutgoingEvents.Count > 0)
+            int runMax = 1000;
+            while (mePlayer.OutgoingEvents.Count > 0 && runMax > 0)
             {
+                runMax--;
                 try
                 {
                     mePlayer.OutgoingEvents.Dequeue().Process();
+                }
+                catch (Exception e)
+                {
+                    RainMeadow.Error(e);
+                }
+            }
+        }
+
+
+        private static Queue<Action> deferredEvents = new Queue<Action>(4);
+        public static void RunDeferred(Action action) { deferredEvents.Enqueue(action); }
+        public void ProcessDeferredEvents()
+        {
+            // stuff we want to process after done reading everything incoming
+            int runMax = 1000;
+            while (deferredEvents.Count > 0 && runMax > 0)
+            {
+                runMax--;
+                try
+                {
+                    deferredEvents.Dequeue()();
                 }
                 catch (Exception e)
                 {

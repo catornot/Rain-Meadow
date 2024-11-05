@@ -1,7 +1,4 @@
-﻿using RainMeadow;
-using static RainMeadow.OnlineState;
-
-namespace RainMeadow
+﻿namespace RainMeadow
 {
     public class PlayerStateState : CreatureStateState
     {
@@ -9,8 +6,8 @@ namespace RainMeadow
         public int foodInStomach;
         [OnlineField]
         public int quarterFoodPoints;
-        [OnlineField(nullable:true)]
-        public string swallowedItem;
+        [OnlineField(nullable: true)]
+        public OnlineEntity.EntityId? objectInStomach;
 
         public PlayerStateState() { }
 
@@ -21,7 +18,22 @@ namespace RainMeadow
 
             foodInStomach = playerState.foodInStomach;
             quarterFoodPoints = playerState.quarterFoodPoints;
-            swallowedItem = playerState.swallowedItem;
+
+            if ((abstractCreature.realizedCreature as Player)?.objectInStomach is AbstractPhysicalObject apo)
+            {
+                apo.pos.room = -1; // signal not-in-a-room
+                if (apo.realizedObject != null) apo.Abstractize(abstractCreature.pos);
+                if (!OnlinePhysicalObject.map.TryGetValue(apo, out var oe))
+                {
+                    apo.world.GetResource().ApoEnteringWorld(apo);
+                    if (!OnlinePhysicalObject.map.TryGetValue(apo, out oe)) throw new System.InvalidOperationException("Stomach item doesn't exist in online space!");
+                }
+                objectInStomach = oe.id;
+            }
+            else
+            {
+                objectInStomach = null;
+            }
         }
 
         public override void ReadTo(AbstractCreature abstractCreature)
@@ -31,8 +43,11 @@ namespace RainMeadow
 
             playerState.foodInStomach = this.foodInStomach;
             playerState.quarterFoodPoints = this.quarterFoodPoints;
-            playerState.swallowedItem = this.swallowedItem;
-        }
 
+            if (abstractCreature.realizedCreature is Player player)
+            {
+                player.objectInStomach = (this.objectInStomach?.FindEntity() as OnlinePhysicalObject)?.apo;
+            }
+        }
     }
 }

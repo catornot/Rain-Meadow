@@ -1,8 +1,8 @@
-﻿using HUD;
+﻿using HarmonyLib;
+using HUD;
 using System.Collections.Generic;
-using UnityEngine;
 using System.Linq;
-using HarmonyLib;
+using UnityEngine;
 
 namespace RainMeadow
 {
@@ -12,6 +12,7 @@ namespace RainMeadow
 
         private RoomCamera camera;
         private readonly OnlineGameMode onlineGameMode;
+        public bool showFriends;
 
         public OnlineHUD(HUD.HUD hud, RoomCamera camera, OnlineGameMode onlineGameMode) : base(hud)
         {
@@ -20,20 +21,32 @@ namespace RainMeadow
             UpdatePlayers();
         }
 
+        public override void Draw(float timeStacker)
+        {
+            if (!ChatHud.chatButtonActive)
+            {
+                if (!RainMeadow.rainMeadowOptions.FriendViewClickToActivate.Value)
+                    showFriends = Input.GetKey(RainMeadow.rainMeadowOptions.FriendsListKey.Value);
+                else if (Input.GetKeyDown(RainMeadow.rainMeadowOptions.FriendsListKey.Value))
+                    showFriends = !showFriends;
+            }
+
+            base.Draw(timeStacker);
+        }
+
         public void UpdatePlayers()
         {
             var clientSettings = OnlineManager.lobby.clientSettings.Values.OfType<ClientSettings>();
             var currentSettings = indicators.Select(i => i.clientSettings).ToList();
 
-            clientSettings.Except(currentSettings).Do(PlayerAdded); 
+            clientSettings.Except(currentSettings).Do(PlayerAdded);
             currentSettings.Except(clientSettings).Do(PlayerRemoved);
-
         }
 
         public void PlayerAdded(ClientSettings clientSettings)
         {
             RainMeadow.DebugMe();
-            PlayerSpecificOnlineHud indicator = new PlayerSpecificOnlineHud(hud, camera, onlineGameMode, clientSettings);
+            PlayerSpecificOnlineHud indicator = new PlayerSpecificOnlineHud(this, camera, onlineGameMode, clientSettings);
             this.indicators.Add(indicator);
             hud.AddPart(indicator);
         }

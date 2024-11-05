@@ -13,7 +13,7 @@ namespace RainMeadow
         private RainWorldGame game;
         private CreatureController creatureController;
         private Creature owner;
-        private MeadowAvatarCustomization customization;
+        private MeadowAvatarData customization;
 
         // emote
         private EmoteDisplayer displayer;
@@ -25,8 +25,8 @@ namespace RainMeadow
 
         // grid
         private bool gridVisible;
-        private int gridNeeded;
-        private float gridFade;
+        private int uiNeeded;
+        private float uiFade;
         private EmoteGridDisplay gridDisplay;
         private Emote[,] gridEmotes;
         private int gridRows;
@@ -67,7 +67,9 @@ namespace RainMeadow
         private bool dragging;
         private FLabel pageLabel;
         private Player.InputPackage package;
-        private float gridLastFade;
+        private float uiLastFade;
+
+        UnityEngine.KeyCode[] alphakeys = new KeyCode[] { KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4, KeyCode.Alpha5, KeyCode.Alpha6, KeyCode.Alpha7, KeyCode.Alpha8 };
 
         public MeadowEmoteHud(HUD.HUD hud, RoomCamera camera, Creature owner) : base(hud)
         {
@@ -77,9 +79,11 @@ namespace RainMeadow
             this.creatureController = CreatureController.creatureControllers.GetValue(owner, (c) => throw new KeyNotFoundException());
 
             this.displayer = EmoteDisplayer.map.GetValue(owner, (c) => throw new KeyNotFoundException());
-            this.customization = (MeadowAvatarCustomization)RainMeadow.creatureCustomizations.GetValue(owner, (c) => throw new KeyNotFoundException());
+            this.customization = (MeadowAvatarData)RainMeadow.creatureCustomizations.GetValue(owner, (c) => throw new KeyNotFoundException());
             var emotes = MeadowProgression.AllAvailableEmotes(customization.character);
             var symbols = MeadowProgression.symbolEmotes;
+
+            RainMeadow.Debug($"MeadowEmoteHud for {owner}, oc is {creatureController.onlineCreature}");
 
             // grid
             int iconsPerColumn = 3;
@@ -145,8 +149,8 @@ namespace RainMeadow
             hud.fContainers[1].AddChild(gridButtonContainer);
             gridVisible = true;
 
-            gridNeeded = 80;
-            gridFade = 1f;
+            uiNeeded = 240;
+            uiFade = 1f;
 
             RainMeadow.Debug($"grid: done");
 
@@ -253,13 +257,16 @@ namespace RainMeadow
                 isVisible = false
             });
 
+            // cursor
+            this.cursor = new MeadowMouseCursor(this, hud.fContainers[1]);
+            this.hud.AddPart(this.cursor);
         }
 
         public override void Update()
         {
             base.Update();
 
-            if(game.pauseMenu != null)
+            if (game.pauseMenu != null)
             {
                 lastRadialPickerActive = false;
                 radialPickerActive = false;
@@ -281,22 +288,23 @@ namespace RainMeadow
             lastPackage = package;
             package = RWInput.PlayerInput(0);
 
-            gridLastFade = gridFade;
+            uiLastFade = uiFade;
 
-            if(mousePos != lastMousePos || dragging || this.gridHover.x != -1)
+            if (mousePos != lastMousePos || dragging || this.gridHover.x != -1)
             {
-                gridNeeded = 80;
+                uiNeeded = Mathf.Max(uiNeeded, 80);
             }
-            gridNeeded = Mathf.Max(gridNeeded - 1, 0);
-            gridFade = Custom.LerpAndTick(gridFade, (gridNeeded > 0) ? 1f : 0f, 0.02f, 0.02f);
+            uiNeeded = Mathf.Max(uiNeeded - 1, 0);
+            uiFade = Custom.LerpAndTick(uiFade, (uiNeeded > 0) ? 1f : 0f, 0.02f, 0.02f);
 
             // grid
             if (mouseDown && !lastMouseDown && gridButtonRect.Contains(mousePos))
             {
-                gridVisible = !gridVisible;
+                if (toggleHidden) { toggleHidden = false; gridVisible = true; }
+                else gridVisible = !gridVisible;
             }
 
-            if (gridVisible && !radialPickerActive)
+            if (!toggleHidden && gridVisible && !radialPickerActive)
             {
                 Vector2 offset = (mousePos - this.gridRect.position - new Vector2(0, gridRect.height)) * new Vector2(1, -1) / (EmoteGridDisplay.emotePreviewSize + EmoteGridDisplay.emotePreviewSpacing);
                 IntVector2 newHover = new IntVector2(Mathf.FloorToInt(offset.x), Mathf.FloorToInt(offset.y));
@@ -314,9 +322,9 @@ namespace RainMeadow
                     clickedEmote = gridEmotes[gridHover.y, gridHover.x];
                     mouseOrigin = mousePos;
                 }
-                else if(!mouseDown && lastMouseDown)
+                else if (!mouseDown && lastMouseDown)
                 {
-                    if(clickedEmote != null && !dragging && newHover == gridHover) // still here
+                    if (clickedEmote != null && !dragging && newHover == gridHover) // still here
                     {
                         EmotePressed(clickedEmote);
                     }
@@ -326,10 +334,11 @@ namespace RainMeadow
             // radial menu
             if (mouseDown && !lastMouseDown && radialButtonRect.Contains((Vector2)Futile.mousePosition))
             {
-                radialVisible = !radialVisible;
+                if (toggleHidden) { toggleHidden = false; radialVisible = true; }
+                else radialVisible = !radialVisible;
             }
 
-            if (radialVisible && !radialPickerActive) // mouse input
+            if (!toggleHidden && radialVisible && !radialPickerActive) // mouse input
             {
                 Vector2 offset = ((Vector2)Futile.mousePosition - this.mainWheelPos);
                 var mag = offset.magnitude;
@@ -395,7 +404,7 @@ namespace RainMeadow
             }
             else if (controller is Rewired.Keyboard keyboard)
             {
-                this.radialPickerActive = keyboard.GetKey(KeyCode.C);
+                this.radialPickerActive = package.pckp;
                 if (radialPickerActive)
                 {
                     if (!lastRadialPickerActive)
@@ -411,7 +420,7 @@ namespace RainMeadow
                     }
                     else
                     {
-                        creatureController.standStill = true;
+                        creatureController.preventInput = true;
                         this.knobVel -= this.knobPos / 6f;
                         this.knobVel.x += (float)package.x * 0.4f;
                         this.knobVel.y += (float)package.y * 0.4f;
@@ -488,9 +497,9 @@ namespace RainMeadow
                 draggedEmote.SetElementByName(customization.GetEmote(clickedEmote));
                 draggedTile.SetElementByName(customization.GetBackground(clickedEmote));
             }
-            if(dragging && !mouseDown && clickedEmote != null) // let go to end
+            if (dragging && !mouseDown && clickedEmote != null) // let go to end
             {
-                if(radialSelected >= 0)
+                if (radialSelected >= 0)
                 {
                     MeadowProgression.progressionData.currentCharacterProgress.emoteHotbar[radialSelected] = clickedEmote;
                     MeadowProgression.AutosaveProgression(true);
@@ -504,14 +513,26 @@ namespace RainMeadow
                 dragging = false;
                 clickedEmote = null;
             }
+            if (mouseDown && clickedEmote != null)
+            {
+                creatureController.preventMouseInput = true;
+            }
         }
+
+
+        bool toggleHidden;
+        bool fullyHidden;
+        private MeadowMouseCursor cursor;
 
         public override void Draw(float timeStacker)
         {
-            var gamePaused = game.pauseMenu != null;
+
+            FrameInput();
+
+            var hideAll = game.pauseMenu != null || fullyHidden;
             base.Draw(timeStacker);
-            
-            if (gamePaused)
+
+            if (hideAll)
             {
                 gridDisplay.isVisible = false;
                 gridButtonContainer.isVisible = false;
@@ -527,15 +548,15 @@ namespace RainMeadow
             }
             else
             {
-                var gridAlpha = Mathf.Lerp(gridFade, gridLastFade, timeStacker);
+                var gridAlpha = Mathf.Lerp(uiFade, uiLastFade, timeStacker);
                 gridDisplay.alpha = gridAlpha;
-                gridDisplay.isVisible = gridVisible;
+                gridDisplay.isVisible = (gridVisible && !toggleHidden);
                 gridButtonContainer.isVisible = true;
-                gridButtonContainer.alpha = gridVisible ? 0.8f : 0.4f;
+                gridButtonContainer.alpha = (gridVisible && !toggleHidden) ? 0.8f : 0.4f;
 
-                radialDisplayer.isVisible = radialVisible || radialPickerActive;
+                radialDisplayer.isVisible = (radialVisible && !toggleHidden) || radialPickerActive;
                 radialButtonContainer.isVisible = true;
-                radialButtonContainer.alpha = radialVisible ? 0.8f : 0.4f;
+                radialButtonContainer.alpha = (radialVisible && !toggleHidden) ? 0.8f : 0.4f;
 
                 draggedEmote.isVisible = dragging;
                 draggedTile.isVisible = dragging;
@@ -552,6 +573,36 @@ namespace RainMeadow
                 this.knobSprite.y = knobDrawPos.y * (mainWheelRad - 18f) + mainWheelPos.y;
 
                 centerLabel.isVisible = true;
+            }
+        }
+
+        private void FrameInput()
+        {
+            // debug
+            if (Input.GetKeyDown(KeyCode.Tab))
+            {
+                toggleHidden = !toggleHidden;
+                if (toggleHidden && game.devToolsActive && Input.GetKey(KeyCode.LeftShift)) fullyHidden = true;
+                else fullyHidden = false;
+            }
+
+            // alpha row
+            for (int i = 0; i < alphakeys.Length; i++)
+            {
+                if (Input.GetKeyDown(alphakeys[i]))
+                {
+                    var selectedEmote = radialEmotes[currentPage][i];
+                    if (selectedEmote != null)
+                    {
+                        EmotePressed(selectedEmote);
+                    }
+                }
+            }
+
+            // backspace
+            if (Input.GetKeyDown(KeyCode.Backspace))
+            {
+                ClearEmotes();
             }
         }
 
@@ -595,9 +646,65 @@ namespace RainMeadow
 
         internal void Refresh()
         {
-            if(slatedForDeletion) { return; }
+            if (slatedForDeletion) { return; }
             slatedForDeletion = true;
             hud.AddPart(new MeadowEmoteHud(hud, camera, owner));
+        }
+
+        public class MeadowMouseCursor : HUD.HudPart
+        {
+            public MeadowMouseCursor(MeadowEmoteHud meadowEmoteHud, FContainer fContainer) : base(meadowEmoteHud.hud)
+            {
+                this.shadow = new FSprite("Futile_White", true);
+                this.shadow.shader = meadowEmoteHud.game.manager.rainWorld.Shaders["FlatLight"];
+                this.shadow.color = new Color(0f, 0f, 0f);
+                this.shadow.scale = 4f;
+                fContainer.AddChild(this.shadow);
+                this.cursorSprite = new FSprite("Cursor", true);
+                this.cursorSprite.anchorX = 0f;
+                this.cursorSprite.anchorY = 1f;
+                fContainer.AddChild(this.cursorSprite);
+                this.meadowEmoteHud = meadowEmoteHud;
+            }
+
+            private bool Needed()
+            {
+                return meadowEmoteHud.uiNeeded > 0 && !UnityEngine.Cursor.visible;
+            }
+
+            public override void Update()
+            {
+                base.Update();
+                this.lastFade = this.fade;
+                this.fade = Custom.LerpAndTick(this.fade, Needed() ? 1f : 0f, 0.01f, 0.033333335f);
+            }
+
+            public override void Draw(float timeStacker)
+            {
+                base.Draw(timeStacker);
+                this.cursorSprite.x = Futile.mousePosition.x + 0.01f;
+                this.cursorSprite.y = Futile.mousePosition.y + 0.01f;
+                this.shadow.x = Futile.mousePosition.x + 3.01f;
+                this.shadow.y = Futile.mousePosition.y - 8.01f;
+                float num = Custom.SCurve(Mathf.Lerp(this.lastFade, this.fade, timeStacker), 0.6f);
+                this.cursorSprite.alpha = num;
+                this.shadow.alpha = Mathf.Pow(num, 3f) * 0.3f;
+            }
+
+            public override void ClearSprites()
+            {
+                base.ClearSprites();
+                this.shadow.RemoveFromContainer();
+                this.cursorSprite.RemoveFromContainer();
+            }
+
+            private FSprite cursorSprite;
+
+            private FSprite shadow;
+
+            private float fade;
+            private float lastFade;
+            private readonly MeadowEmoteHud meadowEmoteHud;
         }
     }
 }

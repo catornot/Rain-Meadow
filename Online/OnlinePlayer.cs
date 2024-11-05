@@ -12,7 +12,6 @@ namespace RainMeadow
 
         public Queue<OnlineEvent> OutgoingEvents = new(8);
         public List<OnlineEvent> recentlyAckedEvents = new(4);
-        public List<OnlineEvent> abortedEvents = new(8);
         public Queue<OnlineStateMessage> OutgoingStates = new(16);
 
         public ushort nextOutgoingEvent = 1; // outgoing, event id
@@ -22,14 +21,16 @@ namespace RainMeadow
         public Queue<uint> recentTicks = new(16); // incoming ticks
         public ushort recentTicksToAckBitpack; // outgoing, bitpack of recent ticks relative to tick, used for ack
         public uint latestTickAck; // incoming, the last tick they've ack'd to me
-        public HashSet<uint> recentlyAckdTicks = new (); // incoming, recent ticks they've acked (from bitpack)
+        public HashSet<uint> recentlyAckdTicks = new(); // incoming, recent ticks they've acked (from bitpack)
         public uint oldestTickToConsider; // incoming, from acked ticks the oldest to use for deltas
 
+
+        public bool isActuallySpectating;
         public bool needsAck;
 
         public bool isMe;
         public bool hasLeft;
-        
+
         // For Debug Overlay
         public int ping; // rtt
         public bool eventsWritten;
@@ -85,7 +86,7 @@ namespace RainMeadow
 
         public OnlineEvent GetRecentEvent(ushort id)
         {
-            return recentlyAckedEvents.FirstOrDefault(e => e.eventId == id) ?? abortedEvents.FirstOrDefault(e => e.eventId == id);
+            return recentlyAckedEvents.FirstOrDefault(e => e.eventId == id);
         }
 
         internal void NewTick(uint newTick)
@@ -142,23 +143,34 @@ namespace RainMeadow
 
         public void AbortUnacknoledgedEvents()
         {
-            if (OutgoingEvents.Count > 0)
+            var toBeAborted = new Queue<OnlineEvent>(OutgoingEvents); // newly added events are not aborted on purpose
+            while (toBeAborted.Count > 0)
             {
-                RainMeadow.Debug($"Aborting events for player {this}");
-                var toBeAborted = new Queue<OnlineEvent>(OutgoingEvents); // newly added events are not aborted on purpose
-                OutgoingEvents.Clear();
-                while (toBeAborted.Count > 0)
+                // this is a bit complex because we only want the events that were originally there
+                // but at the same time handling can add/remove events
+                var e = toBeAborted.Dequeue();
+                if (OutgoingEvents.Contains(e))
                 {
-                    var e = toBeAborted.Dequeue();
                     RainMeadow.Debug($"Aborting: {e}");
                     e.Abort();
-                    abortedEvents.Add(e);
+
+                    //OutgoingEvents.Remove(e);
+                    OutgoingEvents = new Queue<OnlineEvent>(OutgoingEvents.Where(ne => ne != e));
                 }
             }
         }
 
-        internal RPCEvent InvokeRPC(Delegate del, params object[] args)
+        public RPCEvent InvokeRPC(Delegate del, params object[] args)
         {
+            return (RPCEvent)this.QueueEvent(RPCManager.BuildRPC(del, args));
+        }
+
+        public RPCEvent InvokeOnceRPC(Delegate del, params object[] args)
+        {
+            foreach (var e in OutgoingEvents)
+                if (e is RPCEvent rpc && rpc.IsIdentical(del, args))
+                    return rpc;
+
             return (RPCEvent)this.QueueEvent(RPCManager.BuildRPC(del, args));
         }
 
@@ -169,8 +181,11 @@ namespace RainMeadow
             bytesIn[nextSnapshotIndex] = 0;
             bytesOut[nextSnapshotIndex] = 0;
             bytesSnapIndex = nextSnapshotIndex;
+
+            // clear out aborted events
+            if (OutgoingEvents.Any(e => e.aborted)) OutgoingEvents = new Queue<OnlineEvent>(OutgoingEvents.Where(e => !e.aborted));
         }
-        internal TickReference MakeTickReference()
+        public TickReference MakeTickReference()
         {
             return new TickReference(this);
         }

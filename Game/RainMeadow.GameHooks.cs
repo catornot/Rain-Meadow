@@ -3,12 +3,13 @@ using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
 using System;
 using System.Linq;
-using UnityEngine;
 
 namespace RainMeadow
 {
     public partial class RainMeadow
     {
+        static bool doneCutscene; // HACK: should keep track of local firstTimeRealized for RoomSpecificScripts
+
         // setup things
         // prevent creature spawns
         private void GameHooks()
@@ -20,15 +21,22 @@ namespace RainMeadow
             On.RainWorldGame.ShutDownProcess += RainWorldGame_ShutDownProcess;
             IL.ShortcutHandler.SuckInCreature += ShortcutHandler_SuckInCreature;
 
-            On.RegionState.AdaptWorldToRegionState += RegionState_AdaptWorldToRegionState;
+            On.Options.GetSaveFileName_SavOrExp += Options_GetSaveFileName_SavOrExp;
 
-            On.World.LoadWorld += World_LoadWorld;
+            On.RegionState.AdaptWorldToRegionState += RegionState_AdaptWorldToRegionState;
 
             On.Room.ctor += Room_ctor;
             IL.Room.LoadFromDataString += Room_LoadFromDataString;
             IL.Room.Loaded += Room_Loaded;
             On.Room.Loaded += Room_LoadedCheck;
             On.Room.PlaceQuantifiedCreaturesInRoom += Room_PlaceQuantifiedCreaturesInRoom;
+
+            On.RoomSettings.ctor += RoomSettings_ctor;
+
+            On.RoomSpecificScript.AddRoomSpecificScript += RoomSpecificScript_AddRoomSpecificScript;
+
+            IL.RoomSpecificScript.SS_E08GradientGravity.Update += RoomSpecificScript_SS_E08GradientGravity_Update;
+            On.AntiGravity.BrokenAntiGravity.Update += AntiGravity_BrokenAntiGravity_Update;
 
             On.FliesWorldAI.AddFlyToSwarmRoom += FliesWorldAI_AddFlyToSwarmRoom;
 
@@ -46,17 +54,13 @@ namespace RainMeadow
         {
             if (OnlineManager.lobby != null)
             {
-                OnlineManager.lobby.gameMode.clientSettings.inGame = true;
+                OnlineManager.lobby.gameMode.PreGameStart();
             }
             orig(self, manager);
-        }
-
-        private void World_LoadWorld(On.World.orig_LoadWorld orig, World self, SlugcatStats.Name slugcatNumber, System.Collections.Generic.List<AbstractRoom> abstractRoomsList, int[] swarmRooms, int[] shelters, int[] gates)
-        {
-            orig(self, slugcatNumber, abstractRoomsList, swarmRooms, shelters, gates);
-
             if (OnlineManager.lobby != null)
-                OnlineManager.lobby.gameMode.LobbyReadyCheck();
+            {
+                OnlineManager.lobby.gameMode.PostGameStart(self);
+            }
         }
 
         private void RainWorldGame_Update(ILContext il)
@@ -85,9 +89,9 @@ namespace RainMeadow
                 c.Emit(OpCodes.Ldarg_0);
                 c.EmitDelegate((RainWorldGame self) =>
                 {
-                    if(OnlineManager.lobby != null && OnlineManager.lobby.gameMode is MeadowGameMode mgm)
+                    if (OnlineManager.lobby != null && OnlineManager.lobby.gameMode.CustomPauseMenu(self.manager, self) is Menu.PauseMenu pauseMenu)
                     {
-                        self.pauseMenu = new MeadowPauseMenu(self.manager, self, mgm);
+                        self.pauseMenu = pauseMenu;
                         return true;
                     }
                     return false;
@@ -112,7 +116,7 @@ namespace RainMeadow
                     self.manager.blackDelay = 0;
                 }
             }
-            
+
             orig(self);
 
             if (OnlineManager.lobby?.gameMode is MeadowGameMode mgm)
@@ -121,7 +125,7 @@ namespace RainMeadow
                 // every 5 minutes
                 if (self.manager.upcomingProcess == null && self.clock % (5 * 60 * 40) == 0)
                 {
-                    MeadowProgression.progressionData.currentCharacterProgress.saveLocation = mgm.avatar.apo.pos;
+                    MeadowProgression.progressionData.currentCharacterProgress.saveLocation = mgm.avatars[0].apo.pos;
                     MeadowProgression.AutosaveProgression();
                 }
             }
@@ -143,6 +147,14 @@ namespace RainMeadow
             orig(self);
         }
 
+        private string Options_GetSaveFileName_SavOrExp(On.Options.orig_GetSaveFileName_SavOrExp orig, Options self)
+        {
+            if (OnlineManager.lobby != null)
+            {
+                return "online_" + orig(self);
+            }
+            return orig(self);
+        }
 
         private void Room_PlaceQuantifiedCreaturesInRoom(On.Room.orig_PlaceQuantifiedCreaturesInRoom orig, Room self, CreatureTemplate.Type critType)
         {
@@ -180,15 +192,79 @@ namespace RainMeadow
             }
         }
 
+        private void RoomSettings_ctor(On.RoomSettings.orig_ctor orig, RoomSettings self, string name, Region region, bool template, bool firstTemplate, SlugcatStats.Name playerChar)
+        {
+            if (isStoryMode(out var storyGameMode))
+            {
+                playerChar = storyGameMode.currentCampaign;
+            }
+
+            orig(self, name, region, template, firstTemplate, playerChar);
+        }
+
+        private void RoomSpecificScript_AddRoomSpecificScript(On.RoomSpecificScript.orig_AddRoomSpecificScript orig, Room room)
+        {
+            if (isStoryMode(out var storyGameMode))
+            {
+                var firstTimeRealized = room.abstractRoom.firstTimeRealized;
+                if (!doneCutscene && room.abstractRoom.name == SaveState.GetStoryDenPosition(storyGameMode.currentCampaign, out _))
+                {
+                    room.abstractRoom.firstTimeRealized = !doneCutscene;
+                    doneCutscene = true;
+                }
+                orig(room);
+                room.abstractRoom.firstTimeRealized = firstTimeRealized;
+            }
+            else
+            {
+                orig(room);
+            }
+        }
+
+        private void RoomSpecificScript_SS_E08GradientGravity_Update(ILContext il)
+        {
+            try
+            {
+                // if (room.physicalObjects[i][j] is Player)
+                //becomes
+                // if (room.physicalObjects[i][j] is Player && self.room.physicalObjects[i][j].abstractPhysicalObject.IsLocal())
+                var c = new ILCursor(il);
+                var skip = il.DefineLabel();
+                c.GotoNext(moveType: MoveType.After,
+                    i => i.MatchIsinst<Player>(),
+                    i => i.MatchBrfalse(out skip)
+                    );
+                c.MoveAfterLabels();
+                c.Emit(OpCodes.Ldarg_0);
+                c.Emit(OpCodes.Ldloc_0);
+                c.Emit(OpCodes.Ldloc_1);
+                c.EmitDelegate((RoomSpecificScript.SS_E08GradientGravity self, int i, int j) => self.room.physicalObjects[i][j].abstractPhysicalObject.IsLocal());
+                c.Emit(OpCodes.Brtrue, skip);
+            }
+            catch (Exception e)
+            {
+                Logger.LogError(e);
+            }
+        }
+
+        private void AntiGravity_BrokenAntiGravity_Update(On.AntiGravity.BrokenAntiGravity.orig_Update orig, AntiGravity.BrokenAntiGravity self)
+        {
+            if (OnlineManager.lobby != null && self.game.world.GetResource() is WorldSession ws && !ws.isOwner)
+            {
+                if (ws.state != null)
+                {
+                    self.counter = (self.on == (ws.state as WorldSession.WorldState).rainCycleData.antiGravity) ? self.cycleMin * 40 : 0;
+                }
+            }
+            orig(self);
+        }
+
         private void StoryGameSession_ctor(On.StoryGameSession.orig_ctor orig, StoryGameSession self, SlugcatStats.Name saveStateNumber, RainWorldGame game)
         {
             if (OnlineManager.lobby != null)
             {
+                doneCutscene = false;
                 saveStateNumber = OnlineManager.lobby.gameMode.GetStorySessionPlayer(game);
-                if (isStoryMode(out var story))
-                {
-                    story.storyClientSettings.isDead = false;
-                }
             }
             orig(self, saveStateNumber, game);
         }
@@ -209,23 +285,19 @@ namespace RainMeadow
             {
                 DebugOverlay.RemoveOverlay(self);
 
-                OnlineManager.lobby.gameMode.clientSettings.inGame = false;
-                if (isStoryMode(out var story))
-                {
-                    story.storyClientSettings.inGame = false;
-                }
-
-                if (OnlineManager.lobby.gameMode is MeadowGameMode mgm)
-                {
-                    MeadowProgression.progressionData.currentCharacterProgress.saveLocation = mgm.avatar.apo.pos;
-                    MeadowProgression.SaveProgression();
-                    self.rainWorld.progression.SaveToDisk(false, true, false); // save maps
-                }
+                OnlineManager.lobby.gameMode.GameShutDown(self);
 
                 if (!WorldSession.map.TryGetValue(self.world, out var ws)) return;
 
-                ws.FullyReleaseResource();
-
+                if (ws.isActive) ws.Deactivate();
+                ws.NotNeeded();
+                if (self.manager.upcomingProcess != ProcessManager.ProcessID.MainMenu) // quit directly, otherwise wait release
+                {
+                    while (ws.isAvailable)
+                    {
+                        OnlineManager.ForceLoadUpdate();
+                    }
+                }
             }
         }
 
@@ -236,7 +308,7 @@ namespace RainMeadow
             {
                 // if (creature is Player && shortCut.shortCutType == ShortcutData.Type.RoomExit)
                 //becomes
-                // if (creature is Player && ((Player) creature).playerState.slugcatCharacter == Ext_SlugcatStatsName.OnlineSessionRemotePlayer && shortCut.shortCutType == ShortcutData.Type.RoomExit)
+                // if (creature is Player && creature.IsLocal() && shortCut.shortCutType == ShortcutData.Type.RoomExit)
                 var c = new ILCursor(il);
                 var skip = il.DefineLabel();
                 c.GotoNext(moveType: MoveType.After,
@@ -246,8 +318,8 @@ namespace RainMeadow
                     );
                 c.MoveAfterLabels();
                 c.Emit(OpCodes.Ldarg_1);
-                c.EmitDelegate((Creature creature) => { return OnlineManager.lobby != null && ((Player)creature).playerState.slugcatCharacter == Ext_SlugcatStatsName.OnlineSessionRemotePlayer; });
-                c.Emit(OpCodes.Brtrue, skip);
+                c.EmitDelegate((Creature creature) => creature.IsLocal());
+                c.Emit(OpCodes.Brfalse, skip);
             }
             catch (Exception e)
             {

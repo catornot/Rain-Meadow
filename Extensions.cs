@@ -8,24 +8,63 @@ namespace RainMeadow
 {
     public static class Extensions
     {
-        public static WorldSession GetResource(this World world)
+        public static Color ColorFromHex(int value)
         {
-            return WorldSession.map.GetValue(world, (w) => throw new KeyNotFoundException($"World {w.name} not found"));
+            return new Color(((value >> 16) & 0xff) / 255f, ((value >> 8) & 0xff) / 255f, (value & 0xff) / 255f);
         }
 
-        public static RoomSession GetResource(this AbstractRoom room)
+        public static WorldSession? GetResource(this World world)
         {
-            return RoomSession.map.GetValue(room, (r) => throw new KeyNotFoundException($"Room {r.name} not found"));
+            return WorldSession.map.TryGetValue(world, out var ws) ? ws : null;
         }
 
-        public static OnlinePhysicalObject GetOnlineObject(this AbstractPhysicalObject apo)
+        public static RoomSession? GetResource(this AbstractRoom room)
         {
-            return OnlinePhysicalObject.map.GetValue(apo, (apo) => throw new KeyNotFoundException($"Object {apo} not found"));
+            return RoomSession.map.TryGetValue(room, out var rs) ? rs : null;
         }
 
-        public static OnlineCreature GetOnlineCreature(this AbstractCreature ac)
+        public static OnlinePhysicalObject? GetOnlineObject(this AbstractPhysicalObject apo)
         {
-            return (OnlineCreature)OnlineCreature.map.GetValue(ac, (ac) => throw new KeyNotFoundException($"Creature {ac} not found"));
+            return OnlinePhysicalObject.map.TryGetValue(apo, out var oe) ? oe : null;
+        }
+
+        public static bool GetOnlineObject(this AbstractPhysicalObject apo, out OnlinePhysicalObject? opo) => (opo = GetOnlineObject(apo)) is not null;
+
+        public static OnlineCreature? GetOnlineCreature(this AbstractCreature ac)
+        {
+            return GetOnlineObject(ac) as OnlineCreature;
+        }
+
+        public static bool GetOnlineCreature(this AbstractCreature apo, out OnlineCreature? oc) => (oc = GetOnlineCreature(apo)) is not null;
+
+        public static bool IsLocal(this AbstractPhysicalObject apo)
+        {
+            return OnlineManager.lobby is null || (GetOnlineObject(apo)?.isMine ?? true);
+        }
+
+        public static bool IsLocal(this AbstractPhysicalObject apo, out OnlinePhysicalObject? opo)
+        {
+            opo = null;
+            return OnlineManager.lobby is null || (GetOnlineObject(apo, out opo) && opo.isMine);
+        }
+
+        public static bool IsLocal(this PhysicalObject po) => IsLocal(po.abstractPhysicalObject);
+
+        public static bool IsLocal(this PhysicalObject po, out OnlinePhysicalObject? opo)
+        {
+            opo = null;
+            return IsLocal(po.abstractPhysicalObject, out opo);
+        }
+
+        public static bool CanMove(this AbstractPhysicalObject apo, WorldCoordinate? newCoord=null, bool quiet=false)
+        {
+            if (!GetOnlineObject(apo, out var oe)) return true;
+            if (!oe.isMine && !oe.beingMoved && (newCoord is null || oe.roomSession is null || oe.roomSession.absroom.index == newCoord.Value.room))
+            {
+                if (!quiet) RainMeadow.Error($"Remote entity trying to move: {oe} at {oe.roomSession} {Environment.StackTrace}");
+                return false;
+            }
+            return true;
         }
 
         public static bool RemoveFromShortcuts(this Creature creature)
@@ -75,7 +114,7 @@ namespace RainMeadow
             return dictionary;
         }
 
-        public static (List<T1>, List<T2>) ToListTuple<T1, T2>(this IEnumerable<(T1,T2)> source)
+        public static (List<T1>, List<T2>) ToListTuple<T1, T2>(this IEnumerable<(T1, T2)> source)
         {
             var list = source.ToList(); // eval once
             var listA = new List<T1>(list.Count);
@@ -171,6 +210,11 @@ namespace RainMeadow
             {
                 return targetPoint * halfHeight / absY + rect.center;
             }
+        }
+
+        public static Color SafeColorRange(Color valuecolor)
+        {
+            return new Color(Mathf.Clamp(valuecolor.r, 1f / 255f, 1f), Mathf.Clamp(valuecolor.g, 1f / 255f, 1f), Mathf.Clamp(valuecolor.b, 1f / 255f, 1f));
         }
     }
 }

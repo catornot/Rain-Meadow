@@ -1,20 +1,22 @@
-﻿using System.Collections.Generic;
-using HUD;
+﻿using HUD;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace RainMeadow
 {
     public class PlayerSpecificOnlineHud : HudPart
     {
+        public OnlineHUD owner;
         public OnlineGameMode onlineGameMode;
         public ClientSettings clientSettings;
 
         public AbstractCreature abstractPlayer;
+        private SlugcatCustomization customization;
         public OnlinePlayerDisplay playerDisplay;
         public OnlinePlayerDeathBump deathBump;
         public int deadCounter = -1;
         public int antiDeathBumpFlicker;
-        private List<OnlinePlayerHudPart> parts = new();
+        public List<OnlinePlayerHudPart> parts = new();
 
         public bool lastDead;
         public Player RealizedPlayer => this.abstractPlayer.realizedCreature as Player;
@@ -37,17 +39,14 @@ namespace RainMeadow
             }
         }
 
-        public PlayerSpecificOnlineHud(HUD.HUD hud, RoomCamera camera, OnlineGameMode onlineGameMode, ClientSettings clientSettings) : base(hud)
+        public PlayerSpecificOnlineHud(OnlineHUD owner, RoomCamera camera, OnlineGameMode onlineGameMode, ClientSettings clientSettings) : base(owner.hud)
         {
             RainMeadow.Debug("Adding PlayerSpecificOnlineHud for " + clientSettings.owner);
+            this.owner = owner;
             this.camera = camera;
             camrect = new Rect(Vector2.zero, this.camera.sSize).CloneWithExpansion(-30f);
             this.onlineGameMode = onlineGameMode;
             this.clientSettings = clientSettings;
-
-            this.playerDisplay = new OnlinePlayerDisplay(this);
-
-            this.parts.Add(this.playerDisplay);
 
             needed = true;
         }
@@ -56,13 +55,9 @@ namespace RainMeadow
         {
             get
             {
-                return clientSettings.inGame && abstractPlayer != null
-                    && (
-                        abstractPlayer.state.dead ||
-                        (
-                            abstractPlayer.realizedCreature is Player player &&
-                            player.dangerGrasp != null && player.dangerGraspTime > 20
-                        )
+                return clientSettings.inGame && abstractPlayer != null && (
+                    abstractPlayer.state.dead
+                    || (RealizedPlayer?.dangerGrasp != null && RealizedPlayer.dangerGraspTime > 20)
                     );
             }
         }
@@ -92,24 +87,27 @@ namespace RainMeadow
                 }
             }
 
-            if (camera.room == null) return;
             if (!clientSettings.inGame) return;
+            if (camera.room == null || !camera.room.shortCutsReady) return;
             if (abstractPlayer == null)
             {
                 RainMeadow.Debug("finding player abscrt for " + clientSettings.owner);
-                if (clientSettings.avatarId.FindEntity(true) is OnlineCreature oc)
+                if (clientSettings.avatars.Count > 0 && clientSettings.avatars[0].FindEntity(true) is OnlineCreature oc) // todo these arrows should be per-avatar?
                 {
                     abstractPlayer = oc.abstractCreature;
+                    customization = oc.GetData<SlugcatCustomization>();
                 }
-                return;
+                else
+                {
+                    return;
+                }
             }
             if (this.playerDisplay == null)
             {
                 RainMeadow.Debug("adding player arrow for " + clientSettings.owner);
-                this.playerDisplay = new OnlinePlayerDisplay(this);
+                this.playerDisplay = new OnlinePlayerDisplay(this, customization);
                 this.parts.Add(this.playerDisplay);
             }
-
 
             // tracking
             this.found = false;

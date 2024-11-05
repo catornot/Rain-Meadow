@@ -1,5 +1,3 @@
-using System;
-
 namespace RainMeadow
 {
     [DeltaSupport(level = StateHandler.DeltaSupport.FollowsContainer)]
@@ -25,7 +23,6 @@ namespace RainMeadow
             abstractCreature.state.alive = this.alive;
             if (abstractCreature.realizedCreature is Creature creature)
             {
-
                 if (alive && creature.dead)
                 {
                     if (creature is BigSpider spoder && spoder.CanIBeRevived) spoder.Revive();
@@ -39,12 +36,7 @@ namespace RainMeadow
                 {
                     creature.Die();
                     creature.dead = !this.alive;
-
                 }
-
-
-
-
             }
         }
     }

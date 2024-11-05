@@ -44,7 +44,7 @@ namespace RainMeadow
             {
                 EntityRegisteredInResource(oe, oe.MakeDefinition(this), null);
             }
-            else // request to register
+            else if (owner != null && !owner.hasLeft) // request to register
             {
                 oe.pendingRequest = owner.InvokeRPC(this.OnEntityRegisterRequest, oe.MakeDefinition(this), oe.GetState(oe.owner.tick, this)).Then(OnRegisterResolve);
             }
@@ -55,13 +55,14 @@ namespace RainMeadow
         public void OnEntityRegisterRequest(RPCEvent rpcEvent, OnlineEntity.EntityDefinition newEntityEvent, OnlineEntity.EntityState initialState)
         {
             RainMeadow.Debug($"{newEntityEvent} : {this}");
-            if (isOwner && isActive)
+            if (isOwner && isActive && !isReleasing)
             {
                 OnNewRemoteEntity(newEntityEvent, initialState);
                 rpcEvent.from.QueueEvent(new GenericResult.Ok(rpcEvent));
             }
             else
             {
+                RainMeadow.Error($"Failed with reasons {isOwner} {isActive} {!isReleasing}");
                 rpcEvent.from.QueueEvent(new GenericResult.Error(rpcEvent));
             }
         }
@@ -74,11 +75,11 @@ namespace RainMeadow
             var oe = nee.entityId.FindEntity();
             RainMeadow.Debug($"{oe} : {this}");
             if (oe.pendingRequest == registerResult.referencedEvent) oe.pendingRequest = null;
-            else RainMeadow.Error($"Weird event situation, pending is {oe.pendingRequest} and referenced is {registerResult.referencedEvent}");
+            else if (isActive) RainMeadow.Error($"Weird event situation, pending is {oe.pendingRequest} and referenced is {registerResult.referencedEvent}");
 
             if (registerResult is GenericResult.Ok) // success
             {
-                if (isAvailable)
+                if (isActive)
                 {
                     EntityRegisteredInResource(oe, nee, ini);
                 }
@@ -99,8 +100,20 @@ namespace RainMeadow
                 RainMeadow.Error($"Owner not found for entitydefinition: {entityDefinition} : {entityDefinition.owner}");
                 return;
             }
-            OnlineEntity oe = entityDefinition.entityId.FindEntity(quiet: true) ?? entityDefinition.MakeEntity(this, initialState);
-            if(oe.primaryResource == this)
+            OnlineEntity oe = null;
+            try
+            {
+                oe = entityDefinition.entityId.FindEntity(quiet: true) ?? entityDefinition.MakeEntity(this, initialState);
+            }
+            catch (Exception e)
+            {
+                RainMeadow.Error($"Failed to spawn new remote entity in {this} : {entityDefinition}");
+                RainMeadow.Error(e);
+                OnlineManager.recentEntities.Remove(entityDefinition.entityId); // no spurious entries
+                entityDefinition.failedToSpawn = true;
+                return;
+            }
+            if (oe.primaryResource == this)
             {
                 RainMeadow.Error($"Already registered: " + oe);
                 return;
@@ -141,7 +154,7 @@ namespace RainMeadow
             {
                 EntityJoinedResource(oe, null);
             }
-            else // request to join
+            else if (owner != null && !owner.hasLeft) // request to join
             {
                 RequestJoinEntity(oe);
             }
@@ -159,14 +172,14 @@ namespace RainMeadow
         public void OnEntityJoinRequest(RPCEvent rpcEvent, OnlineEntity oe, OnlineEntity.EntityState initialState)
         {
             RainMeadow.Debug($"{oe} : {this}");
-            if (oe != null && isOwner && isActive)
+            if (oe != null && isOwner && isActive && !isReleasing)
             {
                 EntityJoinedResource(oe, initialState);
                 rpcEvent.from.QueueEvent(new GenericResult.Ok(rpcEvent));
             }
             else
             {
-                RainMeadow.Debug($"failed with reasons: {oe != null} {isOwner} {isActive}");
+                RainMeadow.Debug($"failed with reasons: {oe != null} {isOwner} {isActive} {!isReleasing}");
                 rpcEvent.from.QueueEvent(new GenericResult.Error(rpcEvent));
             }
         }
@@ -177,18 +190,17 @@ namespace RainMeadow
             var ini = ((entityJoinResult.referencedEvent as RPCEvent).args[1] as OnlineEntity.EntityState);
             RainMeadow.Debug($"{oe} : {this}");
             if (oe.pendingRequest == entityJoinResult.referencedEvent) oe.pendingRequest = null;
-            else RainMeadow.Error($"Weird event situation, pending is {oe.pendingRequest} and referenced is {entityJoinResult.referencedEvent}");
+            else if (isActive) RainMeadow.Error($"Weird event situation, pending is {oe.pendingRequest} and referenced is {entityJoinResult.referencedEvent}");
 
             if (entityJoinResult is GenericResult.Ok) // success
             {
-                if (isAvailable)
+                if (isActive)
                 {
                     EntityJoinedResource(oe, ini);
                 }
             }
             else if (entityJoinResult is GenericResult.Error) // retry
             {
-                oe.pendingRequest = null;
                 if (oe.isMine) oe.JoinOrLeavePending();
             }
         }
@@ -199,12 +211,8 @@ namespace RainMeadow
             RainMeadow.Debug($"{oe} : {this}");
             joinedEntities.Add(oe.id, new EntityMembership(oe));
             activeEntities.Add(oe);
-            if (isOwner) lastModified = OnlineManager.mePlayer.tick;
-            if (!oe.isMine)
-            {
-                oe.EnterResource(this);
-                oe.ReadState(initialState, this);
-            }
+            EntitiesModified();
+
             oe.OnJoinedResource(this, initialState);
         }
 
@@ -218,7 +226,7 @@ namespace RainMeadow
             {
                 EntityLeftResource(oe);
             }
-            else // request to leave
+            else if (owner != null && !owner.hasLeft) // request to leave
             {
                 RequestEntityLeave(oe);
             }
@@ -235,14 +243,14 @@ namespace RainMeadow
         public void OnEntityLeaveRequest(RPCEvent rpcEvent, OnlineEntity oe)
         {
             RainMeadow.Debug($"{oe} : {this}");
-            if (oe != null && oe.owner == rpcEvent.from && isOwner && isActive)
+            if (oe != null && oe.owner == rpcEvent.from && isOwner && isActive && !isReleasing)
             {
                 EntityLeftResource(oe);
                 rpcEvent.from.QueueEvent(new GenericResult.Ok(rpcEvent));
             }
             else
             {
-                RainMeadow.Debug($"failed with reasons: {oe != null} {oe.owner == rpcEvent.from} {isOwner} {isActive}");
+                RainMeadow.Debug($"failed with reasons: {oe != null} {oe?.owner == rpcEvent.from} {isOwner} {isActive} {!isReleasing}");
                 rpcEvent.from.QueueEvent(new GenericResult.Error(rpcEvent));
             }
         }
@@ -252,18 +260,17 @@ namespace RainMeadow
             var oe = (entityLeaveResult.referencedEvent as RPCEvent).args[0] as OnlineEntity;
             RainMeadow.Debug($"{oe} : {this}");
             if (oe.pendingRequest == entityLeaveResult.referencedEvent) oe.pendingRequest = null;
-            else RainMeadow.Error($"Weird event situation, pending is {oe.pendingRequest} and referenced is {entityLeaveResult.referencedEvent}");
+            else if (isActive) RainMeadow.Error($"Weird event situation, pending is {oe.pendingRequest} and referenced is {entityLeaveResult.referencedEvent}");
 
             if (entityLeaveResult is GenericResult.Ok) // success
             {
-                if (isAvailable)
+                if (isActive)
                 {
                     EntityLeftResource(oe);
                 }
             }
             else if (entityLeaveResult is GenericResult.Error) // retry
             {
-                oe.pendingRequest = null;
                 if (oe.isMine) oe.JoinOrLeavePending();
             }
         }
@@ -276,7 +283,7 @@ namespace RainMeadow
             registeredEntities.Remove(oe.id);
             joinedEntities.Remove(oe.id);
             activeEntities.Remove(oe);
-            if (isOwner) lastModified = OnlineManager.mePlayer.tick;
+            EntitiesModified();
             if (!oe.isMine) oe.ExitResource(this);
             oe.OnLeftResource(this);
         }
@@ -292,9 +299,13 @@ namespace RainMeadow
             {
                 EntityTransfered(oe, to);
             }
-            else // request to transfer
+            else if (owner != null && !owner.hasLeft) // request to transfer
             {
                 RequestEntityTransfer(oe, to);
+            }
+            else
+            {
+                RainMeadow.Error("Can't transfer");
             }
         }
 
@@ -309,14 +320,16 @@ namespace RainMeadow
         public void OnEntityTransferRequest(RPCEvent entityTransferRequest, OnlineEntity oe, OnlinePlayer newOwner)
         {
             RainMeadow.Debug($"{oe} : {this} : to {newOwner}");
-            if (oe != null && isOwner && isActive) // shouldn't there be an extra ownership test here?
+            if (oe != null && entityTransferRequest.from == oe.owner && isOwner && isActive && !isReleasing)
             {
-                EntityTransfered(oe, newOwner);
+                OnlineManager.RunDeferred(() => { // deferred so we receive the incoming state first
+                    EntityTransfered(oe, newOwner);
+                });
                 entityTransferRequest.from.QueueEvent(new GenericResult.Ok(entityTransferRequest));
             }
             else
             {
-                RainMeadow.Debug($"failed with reasons: {oe != null} {isOwner} {isActive}");
+                RainMeadow.Debug($"failed with reasons: {oe != null} {entityTransferRequest.from == oe?.owner} {isOwner} {isActive} {!isReleasing}");
                 entityTransferRequest.from.QueueEvent(new GenericResult.Error(entityTransferRequest));
             }
         }
@@ -328,11 +341,11 @@ namespace RainMeadow
             RainMeadow.Debug($"{oe} : {this}");
             if (!isActive) throw new InvalidOperationException("not active");
             if (oe.pendingRequest == entityTransferResult.referencedEvent) oe.pendingRequest = null;
-            else RainMeadow.Error($"Weird event situation, pending is {oe.pendingRequest} and referenced is {entityTransferResult.referencedEvent}");
+            else if (isActive) RainMeadow.Error($"Weird event situation, pending is {oe.pendingRequest} and referenced is {entityTransferResult.referencedEvent}");
 
             if (entityTransferResult is GenericResult.Ok) // success
             {
-                if (oe.isMine && oe.primaryResource == this && participants.Contains(to)) oe.NewOwner(to);
+                // no op, state comes with updated info
             }
             else if (entityTransferResult is GenericResult.Error) // retry
             {
@@ -346,7 +359,7 @@ namespace RainMeadow
         {
             RainMeadow.Debug($"{oe} : {this} : to {to}");
             oe.NewOwner(to);
-            if (isOwner) lastModified = OnlineManager.mePlayer.tick;
+            EntitiesModified();
         }
     }
 }

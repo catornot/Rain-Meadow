@@ -1,4 +1,3 @@
-using System.Linq;
 using UnityEngine;
 
 namespace RainMeadow
@@ -9,32 +8,25 @@ namespace RainMeadow
         // is all this data really necessary?
         [OnlineField]
         protected byte mode;
-        [OnlineField]
-        private Vector2 tailPos;
-        [OnlineField(nullable = true)]
-        private Vector2? setRotation;
-        [OnlineField]
+        [OnlineFieldHalf]
         private Vector2 rotation;
-        [OnlineField]
-        private Vector2 lastRotation;
-        [OnlineField]
+        [OnlineFieldHalf]
         private float rotationSpeed;
-        
+        [OnlineField(nullable = true)]
+        private OnlineEntity.EntityId? thrownBy;
+
         public RealizedWeaponState() { }
         public RealizedWeaponState(OnlinePhysicalObject onlineEntity) : base(onlineEntity)
         {
             var weapon = (Weapon)onlineEntity.apo.realizedObject;
             mode = (byte)weapon.mode;
-            tailPos = weapon.tailPos;
-            setRotation = weapon.setRotation;
             rotation = weapon.rotation;
-            lastRotation = weapon.lastRotation;
             rotationSpeed = weapon.rotationSpeed;
+            thrownBy = (weapon.thrownBy?.abstractCreature != null && OnlineCreature.map.TryGetValue(weapon.thrownBy.abstractCreature, out var oc)) ? oc?.id : null;
         }
 
         public override void ReadTo(OnlineEntity onlineEntity)
         {
-            if (!onlineEntity.owner.isMe && onlineEntity.isPending) return; // Don't sync if pending, reduces visibility and effect of lag
             base.ReadTo(onlineEntity);
             var weapon = (Weapon)((OnlinePhysicalObject)onlineEntity).apo.realizedObject;
             var newMode = new Weapon.Mode(Weapon.Mode.values.GetEntry(mode));
@@ -44,10 +36,9 @@ namespace RainMeadow
                 weapon.ChangeMode(newMode);
                 weapon.throwModeFrames = -1; // not synched, behaves as "infinite"
             }
-            weapon.tailPos = tailPos;
-            weapon.setRotation = setRotation;
+            weapon.thrownBy = (thrownBy?.FindEntity() as OnlineCreature)?.realizedCreature;
+            if (weapon.grabbedBy != null && weapon.grabbedBy.Count > 0) { RainMeadow.Trace($"Skipping state because grabbed"); return; }
             weapon.rotation = rotation;
-            weapon.lastRotation = lastRotation;
             weapon.rotationSpeed = rotationSpeed;
         }
     }

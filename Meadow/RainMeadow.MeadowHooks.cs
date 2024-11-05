@@ -15,6 +15,7 @@ namespace RainMeadow
         {
             _ = Ext_SoundID.RM_Slugcat_Call; //load
 
+            GroundCreatureController.Enable();
             CicadaController.EnableCicada();
             LizardController.EnableLizard();
             ScavengerController.EnableScavenger();
@@ -50,13 +51,68 @@ namespace RainMeadow
 
             On.Creature.Die += Creature_Die; // do not die!
 
+            On.WormGrass.IsTileAccessible += WormGrass_IsTileAccessible; // always accessible
+            On.WormGrass.WormGrassPatch.InteractWithCreature += WormGrassPatch_InteractWithCreature;
+            IL.WormGrass.WormGrassPatch.InteractWithCreature += WormGrassPatch_InteractWithCreature1;
             On.WormGrass.Worm.ctor += Worm_ctor; // only cosmetic worms
 
             IL.ScavengerOutpost.ctor += ScavengerOutpost_ctor;
 
-            On.ShortcutGraphics.GenerateSprites += ShortcutGraphics_GenerateSprites;
+            On.ShortcutGraphics.GenerateSprites += ShortcutGraphics_GenerateSprites; // creature pipe indicators
+            On.ShortcutGraphics.Draw += ShortcutGraphics_Draw;
 
             On.World.SpawnGhost += World_SpawnGhost;
+
+            On.CreatureTemplate.CreatureRelationship_CreatureTemplate += CreatureTemplate_CreatureRelationship_CreatureTemplate;
+        }
+
+        private CreatureTemplate.Relationship CreatureTemplate_CreatureRelationship_CreatureTemplate(On.CreatureTemplate.orig_CreatureRelationship_CreatureTemplate orig, CreatureTemplate self, CreatureTemplate crit)
+        {
+            if (OnlineManager.lobby != null && OnlineManager.lobby.gameMode is MeadowGameMode)
+            {
+                return new CreatureTemplate.Relationship(CreatureTemplate.Relationship.Type.Ignores, 2f); // intense ignore helps with looking
+            }
+            return orig(self, crit);
+        }
+
+        private void WormGrassPatch_InteractWithCreature1(ILContext il)
+        {
+            var c = new ILCursor(il);
+            ILLabel skip = null;
+            c.GotoNext(MoveType.After,
+                i => i.MatchLdfld<CreatureTemplate>("type"),
+                i => i.MatchLdsfld<CreatureTemplate.Type>("Slugcat"),
+                i => i.MatchCallOrCallvirt("ExtEnum`1<CreatureTemplate/Type>", "op_Inequality"),
+                i => i.MatchBrfalse(out skip)
+                );
+            c.EmitDelegate(() =>
+            {
+                if(OnlineManager.lobby != null && OnlineManager.lobby.gameMode is MeadowGameMode)
+                {
+                    return false;
+                }
+                return true;
+            });
+            c.Emit(OpCodes.Brfalse, skip);
+        }
+
+        private void WormGrassPatch_InteractWithCreature(On.WormGrass.WormGrassPatch.orig_InteractWithCreature orig, WormGrass.WormGrassPatch self, WormGrass.WormGrassPatch.CreatureAndPull creatureAndPull)
+        {
+            if (OnlineManager.lobby != null && OnlineManager.lobby.gameMode is MeadowGameMode)
+            {
+                creatureAndPull.bury = 0f;
+                creatureAndPull.pull = 0f;
+            }
+            orig(self, creatureAndPull);
+        }
+
+        private bool WormGrass_IsTileAccessible(On.WormGrass.orig_IsTileAccessible orig, WormGrass self, RWCustom.IntVector2 tile, CreatureTemplate crit)
+        {
+            if (OnlineManager.lobby != null && OnlineManager.lobby.gameMode is MeadowGameMode)
+            {
+                return true;
+            }
+            return orig(self, tile, crit);
         }
 
         private void World_SpawnGhost(On.World.orig_SpawnGhost orig, World self)
@@ -68,6 +124,24 @@ namespace RainMeadow
             orig(self);
         }
 
+        private void ShortcutGraphics_Draw(On.ShortcutGraphics.orig_Draw orig, ShortcutGraphics self, float timeStacker, Vector2 camPos)
+        {
+            orig(self, timeStacker, camPos);
+            if (OnlineManager.lobby != null && OnlineManager.lobby.gameMode is MeadowGameMode)
+            {
+                if (ModManager.MSC) // get out of the way
+                {
+                    for (int k = 0; k < self.entranceSprites.GetLength(0); k++)
+                    {
+                        if (self.entranceSprites[k, 0] != null && self.room.shortcuts[k].shortCutType == ShortcutData.Type.NPCTransportation)
+                        {
+                            self.entranceSprites[k, 0].isVisible = true;
+                        }
+                    }
+                }
+            }
+        }
+
         private void ShortcutGraphics_GenerateSprites(On.ShortcutGraphics.orig_GenerateSprites orig, ShortcutGraphics self)
         {
             orig(self);
@@ -75,8 +149,9 @@ namespace RainMeadow
             {
                 for (int l = 0; l < self.room.shortcuts.Length; l++)
                 {
-                    if (self.room.shortcuts[l].shortCutType == ShortcutData.Type.NPCTransportation && self.entranceSprites[l, 0] == null)
+                    if (self.room.shortcuts[l].shortCutType == ShortcutData.Type.NPCTransportation)
                     {
+                        self.entranceSprites[l, 0]?.RemoveFromContainer(); // remove safari one
                         self.entranceSprites[l, 0] = new FSprite("Pebble10", true);
                         self.entranceSprites[l, 0].rotation = RWCustom.Custom.AimFromOneVectorToAnother(new Vector2(0f, 0f), -RWCustom.IntVector2.ToVector2(self.room.ShorcutEntranceHoleDirection(self.room.shortcuts[l].StartTile)));
                         self.entranceSpriteLocations[l] = self.room.MiddleOfTile(self.room.shortcuts[l].StartTile) + RWCustom.IntVector2.ToVector2(self.room.ShorcutEntranceHoleDirection(self.room.shortcuts[l].StartTile)) * 15f;
@@ -183,9 +258,9 @@ namespace RainMeadow
 
         private bool RegionGate_AllPlayersThroughToOtherSide1(On.RegionGate.orig_AllPlayersThroughToOtherSide orig, RegionGate self)
         {
-            if(OnlineManager.lobby != null && OnlineManager.lobby.gameMode is MeadowGameMode mgm)
+            if (OnlineManager.lobby != null && OnlineManager.lobby.gameMode is MeadowGameMode mgm)
             {
-                if (mgm.avatar.creature.pos.room == self.room.abstractRoom.index && (!self.letThroughDir || mgm.avatar.creature.pos.x < self.room.TileWidth / 2 + 3) && (self.letThroughDir || mgm.avatar.creature.pos.x > self.room.TileWidth / 2 - 4))
+                if (mgm.avatars[0].creature.pos.room == self.room.abstractRoom.index && (!self.letThroughDir || mgm.avatars[0].creature.pos.x < self.room.TileWidth / 2 + 3) && (self.letThroughDir || mgm.avatars[0].creature.pos.x > self.room.TileWidth / 2 - 4))
                 {
                     return false;
                 }
@@ -198,7 +273,7 @@ namespace RainMeadow
         {
             if (OnlineManager.lobby != null && OnlineManager.lobby.gameMode is MeadowGameMode mgm)
             {
-                if (mgm.avatar.realizedCreature != null && CreatureController.creatureControllers.TryGetValue(mgm.avatar.realizedCreature, out var c))
+                if (mgm.avatars[0].realizedCreature != null && CreatureController.creatureControllers.TryGetValue(mgm.avatars[0].realizedCreature, out var c))
                 {
                     return c.touchedNoInputCounter > 20;
                 }
@@ -210,7 +285,7 @@ namespace RainMeadow
         {
             if (OnlineManager.lobby != null && OnlineManager.lobby.gameMode is MeadowGameMode mgm)
             {
-                if (mgm.avatar.realizedCreature != null && CreatureController.creatureControllers.TryGetValue(mgm.avatar.realizedCreature, out var c))
+                if (mgm.avatars[0].realizedCreature != null && CreatureController.creatureControllers.TryGetValue(mgm.avatars[0].realizedCreature, out var c))
                 {
                     return self.DetectZone(c.creature.abstractCreature);
                 }
@@ -260,7 +335,7 @@ namespace RainMeadow
 
         private bool RainWorldGame_AllowRainCounterToTick(On.RainWorldGame.orig_AllowRainCounterToTick orig, RainWorldGame self)
         {
-            if(OnlineManager.lobby != null && OnlineManager.lobby.gameMode is MeadowGameMode)
+            if (OnlineManager.lobby != null && OnlineManager.lobby.gameMode is MeadowGameMode)
             {
                 return false;
             }
@@ -285,7 +360,7 @@ namespace RainMeadow
                 //}
 
                 var c = new ILCursor(il);
-                var loc = il.Body.Variables.First(v=>v.VariableType.Name == "SaveState").Index;
+                var loc = il.Body.Variables.First(v => v.VariableType.Name == "SaveState").Index;
                 ILLabel vanilla = il.DefineLabel();
                 ILLabel skipToEnd = null;
                 MethodReference op_Ineq;
@@ -314,11 +389,12 @@ namespace RainMeadow
 
         private void RoomCamera_Update(On.RoomCamera.orig_Update orig, RoomCamera self)
         {
-            if(OnlineManager.lobby != null && OnlineManager.lobby.gameMode is MeadowGameMode meadowGameMode)
+            if (OnlineManager.lobby != null && OnlineManager.lobby.gameMode is MeadowGameMode meadowGameMode)
             {
-                if(self.hud == null && self.followAbstractCreature?.realizedObject is Creature owner)
+                if (self.hud == null && self.followAbstractCreature?.realizedObject is Creature owner)
                 {
-                    if(owner != meadowGameMode.avatar.realizedCreature) { RainMeadow.Error($"Camera owner != avatar {owner} {meadowGameMode.avatar}"); }
+                    RainMeadow.Debug("followed creature is " + owner);
+                    if (owner != meadowGameMode.avatars[0].realizedCreature) { RainMeadow.Error($"Camera owner != avatar {owner} {meadowGameMode.avatars[0]}"); }
 
                     self.hud = new HUD.HUD(new FContainer[]
                     {

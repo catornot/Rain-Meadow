@@ -1,8 +1,8 @@
-﻿using UnityEngine;
-using RWCustom;
+﻿using Mono.Cecil.Cil;
 using MonoMod.Cil;
+using RWCustom;
 using System;
-using Mono.Cecil.Cil;
+using UnityEngine;
 
 namespace RainMeadow
 {
@@ -24,6 +24,50 @@ namespace RainMeadow
             On.SmallNeedleWormAI.Update += SmallNeedleWormAI_Update;
 
             IL.NeedleWorm.Fly += NeedleWorm_Fly;
+            On.NeedleWorm.Fly += NeedleWorm_Fly1;
+
+            IL.NeedleWormGraphics.ApplyPalette += NeedleWormGraphics_ApplyPalette; // colors
+        }
+
+        private static void NeedleWormGraphics_ApplyPalette(ILContext il)
+        {
+            // recolor after assigning to bodycolor before using it
+            var c = new ILCursor(il);
+            c.GotoNext(MoveType.Before, // sleaser usage
+                i => i.MatchLdarg(1)
+                );
+            c.GotoPrev(MoveType.After, // bodycolor storage
+                i => i.MatchStfld<NeedleWormGraphics>("highLightColor")
+                );
+
+            c.MoveAfterLabels();
+            c.Emit(OpCodes.Ldarg_0);
+            c.EmitDelegate<Action<NeedleWormGraphics>>((self) =>
+            {
+                if (creatureControllers.TryGetValue(self.worm, out var p))
+                {
+                    p.customization.ModifyBodyColor(ref self.detailsColor);
+                    p.customization.ModifyBodyColor(ref self.highLightColor);
+                    p.customization.ModifyBodyColor(ref self.bodyColor);
+                }
+            });
+        }
+
+        private static void NeedleWorm_Fly1(On.NeedleWorm.orig_Fly orig, NeedleWorm self, MovementConnection followingConnection)
+        {
+            if (creatureControllers.TryGetValue(self, out var controller))
+            {
+                // if water or close to terrain, crawl
+                if ((self.room.GetTile(followingConnection.startCoord).AnyWater || self.room.aimap.getTerrainProximity(followingConnection.startCoord) <= 1)
+                 && (self.room.GetTile(followingConnection.destinationCoord).AnyWater || self.room.aimap.getTerrainProximity(followingConnection.destinationCoord) <= 1))
+                {
+                    self.Crawl(followingConnection);
+                    return;
+                }
+            }
+
+
+            orig(self, followingConnection);
         }
 
         private static void NeedleWorm_Fly(ILContext il)
@@ -195,7 +239,7 @@ namespace RainMeadow
             RainMeadow.Trace($"atDestThisFrame? {self.atDestThisFrame}");
         }
 
-        public NoodleController(Creature creature, OnlineCreature oc, int playerNumber, MeadowAvatarCustomization customization) : base(creature, oc, playerNumber, customization)
+        public NoodleController(Creature creature, OnlineCreature oc, int playerNumber, MeadowAvatarData customization) : base(creature, oc, playerNumber, customization)
         {
         }
 
@@ -222,6 +266,22 @@ namespace RainMeadow
         protected override void OnCall()
         {
             noodle.screaming = 0.5f;
+        }
+
+        protected override void PointImpl(Vector2 dir)
+        {
+            // fun but cursed
+            // noodle.AddSegmentVel(creature.bodyChunks.Length + noodle.tail.GetLength(0) - 1, dir * 20f);
+
+            if (noodle.graphicsModule is NeedleWormGraphics ng)
+            {
+                for (int i = 0; i < ng.snout.Length; i++)
+                {
+                    ng.snout[i].vel *= 0.6f; // airbreak
+                    ng.snout[i].vel.y += 0.9f; // negate gravity;
+                    ng.snout[i].vel += 5f * dir;
+                }
+            }
         }
     }
 }

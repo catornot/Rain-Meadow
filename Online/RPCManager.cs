@@ -34,9 +34,20 @@ namespace RainMeadow
         public static void SetupRPCs()
         {
             index = 1; // zero is an easy to catch mistake
-            foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
+
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies().ToList())
             {
-                RegisterRPCs(type);
+                try
+                {
+                    foreach (var type in assembly.GetTypes().ToList())
+                    {
+                        RegisterRPCs(type);
+                    }
+                }
+                catch (Exception e)
+                {
+                    RainMeadow.Error(e);
+                }
             }
         }
 
@@ -53,6 +64,7 @@ namespace RainMeadow
 
         public static void RegisterRPCs(Type targetType)
         {
+            if (targetType.IsGenericTypeDefinition || targetType.IsInterface) return;
             var methods = targetType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).Where(m => m.GetCustomAttribute<RPCMethodAttribute>() != null);
             if (!methods.Any()) return;
 
@@ -237,15 +249,16 @@ namespace RainMeadow
                 }
 
                 RainMeadow.Debug($"Processing RPC: {handler.summary}");
+                var useArgs = args;
                 if (handler.eventArgIndex > -1)
                 {
                     var newArgs = args.ToList();
                     newArgs.Insert(handler.eventArgIndex, this);
-                    args = newArgs.ToArray();
+                    useArgs = newArgs.ToArray();
                 }
 
                 var nout = from.OutgoingEvents.Count;
-                var result = handler.method.Invoke(target, args);
+                var result = handler.method.Invoke(target, useArgs);
                 if (from.OutgoingEvents.Count != nout && from.OutgoingEvents.Any(e => e is GenericResult gr && gr.referencedEvent == this)) return;
 
                 if (result is GenericResult res) from.QueueEvent(res);
@@ -284,7 +297,7 @@ namespace RainMeadow
             this.Resolve(new GenericResult.Error(this));
         }
 
-        internal bool IsIdentical(Delegate del, params object[] args)
+        public bool IsIdentical(Delegate del, params object[] args)
         {
             return handler.method == del.Method && this.target == del.Target && this.args.SequenceEqual(args);
         }

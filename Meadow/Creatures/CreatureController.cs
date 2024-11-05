@@ -1,23 +1,22 @@
-﻿using System;
-using UnityEngine;
-using RWCustom;
-using System.Runtime.CompilerServices;
-using System.Linq;
-using HUD;
+﻿using HUD;
 using Rewired;
+using RWCustom;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using UnityEngine;
 
 namespace RainMeadow
 {
     public abstract class CreatureController : IOwnAHUD
     {
         public static ConditionalWeakTable<Creature, CreatureController> creatureControllers = new();
-        internal static void BindAvatar(Creature creature, OnlineCreature oc, MeadowAvatarCustomization customization)
+        internal static void BindAvatar(Creature creature, OnlineCreature oc, MeadowAvatarData customization)
         {
             if (creature is Player player)
             {
                 new MeadowPlayerController(player, oc, 0, customization);
             }
-            else if(creature is Cicada cada)
+            else if (creature is Cicada cada)
             {
                 new CicadaController(cada, oc, 0, customization);
             }
@@ -52,10 +51,10 @@ namespace RainMeadow
         public OnlineCreature onlineCreature;
         public MeadowCreatureData mcd;
         public MeadowVoice voice;
-        public MeadowAvatarCustomization customization;
+        public MeadowAvatarData customization;
 
 
-        public CreatureController(Creature creature, OnlineCreature oc, int playerNumber, MeadowAvatarCustomization customization)
+        public CreatureController(Creature creature, OnlineCreature oc, int playerNumber, MeadowAvatarData customization)
         {
             this.creature = creature;
             this.template = creature.Template;
@@ -63,7 +62,10 @@ namespace RainMeadow
             this.mcd = oc.GetData<MeadowCreatureData>();
             this.playerNumber = playerNumber;
             this.customization = customization;
+
             this.voice = new(this);
+            this.effectColor = creature.ShortCutColor();
+            this.needsLight = true;
 
             creatureControllers.Add(creature, this);
 
@@ -101,6 +103,10 @@ namespace RainMeadow
         public int eatCounter;
         public int dontEatExternalFoodSourceCounter;
         public int eatExternalFoodSourceCounter;
+
+        public Color effectColor;
+        public LightSource lightSource;
+        public bool needsLight;
 
         public DebugDestinationVisualizer debugDestinationVisualizer;
 
@@ -145,7 +151,13 @@ namespace RainMeadow
         public static HUD.HUD.OwnerType controlledCreatureHudOwner = new("MeadowControlledCreature", true);
 
         public bool lockInPlace;
-        public bool standStill;
+        public bool preventInput;
+
+        protected IntVector2 forceInputDir;
+        protected int forceInputCounter;
+        internal bool preventMouseInput;
+        public bool pointing;
+        protected int pointCounter;
 
         // IOwnAHUD
         public HUD.HUD.OwnerType GetOwnerType() => controlledCreatureHudOwner;
@@ -162,6 +174,11 @@ namespace RainMeadow
                 if (creature.stun == 0 && !creature.dead)
                 {
                     this.input[0] = RWInput.PlayerInput(playerNumber);
+                    if (forceInputCounter > 0)
+                    {
+                        this.input[0].x = forceInputDir.x;
+                        this.input[0].y = forceInputDir.y;
+                    }
                 }
                 else
                 {
@@ -192,7 +209,7 @@ namespace RainMeadow
             }
 
             rawInput = this.input[0];
-            if (this.standStill || (this.standStillOnMapButton && this.input[0].mp) || this.sleepCounter != 0)
+            if (this.preventInput || (this.standStillOnMapButton && this.input[0].mp) || this.sleepCounter != 0)
             {
                 this.input[0].x = 0;
                 this.input[0].y = 0;
@@ -219,17 +236,18 @@ namespace RainMeadow
             SpecialInput specialInput = default;
             //var controllerPreset = rainWorld.options.controls[playerNumber].GetActivePreset();
             var controller = Custom.rainWorld.options.controls[playerNumber].GetActiveController();
-            if(controller is Joystick joystick)
+            if (controller is Joystick joystick)
             {
                 //if(controllerPreset == Options.ControlSetup.Preset.XBox)
                 specialInput.direction = Vector2.ClampMagnitude(new Vector2(joystick.GetAxis(2), joystick.GetAxis(3)), 1f);
             }
             else
             {
-                if(Input.GetMouseButton(0))
+                if (!preventMouseInput && Input.GetMouseButton(0))
                 {
                     specialInput.direction = Vector2.ClampMagnitude((((Vector2)Futile.mousePosition) - referencePoint) / 500f, 1f);
                 }
+                preventMouseInput = false;
             }
             return specialInput;
         }
@@ -278,12 +296,31 @@ namespace RainMeadow
             inputDir = input[0].analogueDir.magnitude > 0.2f ? input[0].analogueDir
                 : input[0].IntVec.ToVector2().magnitude > 0.2 ? input[0].IntVec.ToVector2().normalized
                 : Vector2.zero;
-
+            if (forceInputCounter > 0) forceInputCounter--;
             if (this.wantToJump > 0) this.wantToJump--;
             if (this.wantToPickUp > 0) this.wantToPickUp--;
             if (this.wantToThrow > 0) this.wantToThrow--;
 
             this.voice.Update();
+
+            var mainPos = creature.mainBodyChunk.pos;
+            if (this.lightSource != null)
+            {
+                this.lightSource.stayAlive = true;
+                this.lightSource.setPos = new Vector2?(mainPos);
+                if (this.lightSource.slatedForDeletetion || this.creature.room.Darkness(mainPos) == 0f)
+                {
+                    this.lightSource = null;
+                }
+            }
+            else if (needsLight && this.creature.room.Darkness(mainPos) > 0f)
+            {
+                this.lightSource = new LightSource(mainPos, false, Color.Lerp(new Color(1f, 1f, 1f), this.effectColor, 0.5f), this.creature);
+                this.lightSource.requireUpKeep = true;
+                this.lightSource.setRad = new float?(300f);
+                this.lightSource.setAlpha = new float?(1f);
+                this.creature.room.AddObject(this.lightSource);
+            }
 
             #region unimplemented
             // a lot of things copypasted from from p.update
@@ -435,6 +472,30 @@ namespace RainMeadow
             //}
             #endregion
 
+            // map discovery adapted to meadow
+            // auto-discover shelters by just being close enough
+            if (creature.coord != creature.lastCoord) // "new tile"
+            {
+                if (this.MapDiscoveryActive && creature.room.shortCutsReady && creature.room.game.cameras[0].hud != null && creature.room.game.cameras[0].hud.map != null)
+                {
+                    var map = creature.room.game.cameras[0].hud.map;
+                    int length = creature.room.abstractRoom.connections.Length;
+                    for (int i = 0; i < length; i++)
+                    {
+                        var pos = creature.room.MiddleOfTile(creature.room.exitAndDenIndex[i]);
+                        if (Custom.DistLess(pos, creature.mainBodyChunk.pos, 500f)) // close enough
+                        {
+                            map.ExternalOnePixelDiscover(pos, creature.room.abstractRoom.index);
+                            var neighbor = creature.room.world.GetAbstractRoom(creature.room.abstractRoom.connections[i]);
+                            if (neighbor != null && neighbor.shelter)
+                            {
+                                creature.room.game.rainWorld.progression.TempDiscoverShelter(neighbor.name);
+                            }
+                        }
+                    }
+                }
+            }
+
             // Void melt so damn annoying
             if (creature.room?.roomSettings.GetEffect(RoomSettings.RoomEffect.Type.VoidMelt) is RoomSettings.RoomEffect effect)
             {
@@ -477,7 +538,7 @@ namespace RainMeadow
                 this.debugDestinationVisualizer.sprite2.sprite.isVisible = visibility;
                 this.debugDestinationVisualizer.sprite3.sprite.isVisible = visibility;
                 this.debugDestinationVisualizer.sprite4.sprite.isVisible = visibility;
-                
+
                 if (debugDestinationVisualizer.room != creature.room && creature.room != null)
                 {
                     debugDestinationVisualizer.pathfinder = this.creature.abstractCreature.abstractAI.RealAI.pathFinder;
@@ -485,6 +546,11 @@ namespace RainMeadow
                 }
                 this.debugDestinationVisualizer.Update();
             }
+        }
+
+        protected virtual void PointImpl(Vector2 dir)
+        {
+
         }
 
         public virtual void ForceAIDestination(WorldCoordinate coord)
@@ -499,12 +565,13 @@ namespace RainMeadow
             }
             var absAI = creature.abstractCreature.abstractAI;
             absAI.destination = coord; // we don't run the setter
-            
+
             // pathfinder has some "optimizations" that need bypassing
+            // the setter tries to find a new coord that is inside the mapped area and reachable
+            // too bad mapped area doesnt include water in most cases
             var pathFinder = absAI.RealAI.pathFinder;
             pathFinder.nextDestination = null;
             pathFinder.AssignNewDestination(coord);
-            pathFinder.ForceNextDestination();
         }
 
         #region grabcode
@@ -771,10 +838,40 @@ namespace RainMeadow
                 LookImpl(creature.DangerPos + 200 * inputDir);
             }
 
-            if(wantToThrow > 0)
+            if (wantToThrow > 0)
             {
                 wantToThrow = 0;
                 Call();
+            }
+
+            if (input[0].thrw)
+            {
+                pointCounter++;
+
+            }
+            else
+            {
+                pointCounter = 0;
+            }
+
+            var pointDir = specialInput[0].direction;
+            if (pointDir == Vector2.zero) pointDir = inputDir;
+
+            if (pointDir != Vector2.zero || pointCounter > 10)
+            {
+                if (pointDir != Vector2.zero && (input[0].thrw || pointCounter > 10))
+                {
+                    pointing = true;
+                    if (pointCounter > 10) lockInPlace = true;
+                }
+                if (pointing)
+                {
+                    PointImpl(pointDir);
+                }
+            }
+            else
+            {
+                pointing = false;
             }
 
             if (onlineCreature.isMine)
@@ -833,6 +930,7 @@ namespace RainMeadow
                 }
                 else
                 {
+                    if (localTrace && lockInPlace) RainMeadow.Debug($"locked in place: {basecoord.Tile}");
                     Resting();
                     mcd.moveSpeed = 0f;
                     if (template.AI && basecoord != creature.abstractCreature.abstractAI.RealAI.pathFinder.destination)
@@ -860,7 +958,7 @@ namespace RainMeadow
             }
 
             lockInPlace = false;
-            standStill = false;
+            preventInput = false;
         }
 
         private void Call()

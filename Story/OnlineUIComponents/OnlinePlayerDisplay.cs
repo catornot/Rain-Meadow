@@ -1,5 +1,5 @@
-﻿using RainMeadow.GameModes;
-using RWCustom;
+﻿using RWCustom;
+using System.Linq;
 using UnityEngine;
 
 namespace RainMeadow
@@ -11,19 +11,22 @@ namespace RainMeadow
         public FLabel label;
         public FSprite slugIcon;
         public int counter;
-        public int fadeAwayCounter;
+        public int resetUsernameCounter;
         public float alpha;
         public float lastAlpha;
         public float blink;
         public float lastBlink;
         public bool switchedToDeathIcon;
-        private bool isButtonToggled;
+        public int onlineTimeSinceSpawn;
+        public string iconString;
 
+        SlugcatCustomization customization;
 
-        public OnlinePlayerDisplay(PlayerSpecificOnlineHud owner) : base(owner)
+        public OnlinePlayerDisplay(PlayerSpecificOnlineHud owner, SlugcatCustomization customization) : base(owner)
         {
-            this.owner = owner;
 
+            this.owner = owner;
+            this.resetUsernameCounter = 200;
 
             this.pos = new Vector2(-1000f, -1000f);
             this.lastPos = this.pos;
@@ -33,9 +36,8 @@ namespace RainMeadow
             owner.hud.fContainers[0].AddChild(this.gradient);
             this.gradient.alpha = 0f;
             this.gradient.x = -1000f;
-            this.label = new FLabel(Custom.GetFont(), owner.clientSettings.owner.id.name);
+            this.label = new FLabel(Custom.GetFont(), customization.nickname);
             this.label.color = Color.white;
-
 
 
             owner.hud.fContainers[0].AddChild(this.label);
@@ -46,67 +48,58 @@ namespace RainMeadow
             this.arrowSprite.alpha = 0f;
             this.arrowSprite.x = -1000f;
             this.arrowSprite.color = Color.white;
-            this.slugIcon = new FSprite("Kill_Slugcat", true);
+
+            if (owner.clientSettings.owner == OnlineManager.lobby.owner)
+            {
+                this.iconString = "ChieftainA";
+            }
+            else
+            {
+                this.iconString = "Kill_Slugcat";
+
+            }
+            this.slugIcon = new FSprite(iconString, true);
             owner.hud.fContainers[0].AddChild(this.slugIcon);
             this.slugIcon.alpha = 0f;
             this.slugIcon.x = -1000f;
-                        this.slugIcon.color = Color.white;
+            this.slugIcon.color = Color.white;
 
             this.blink = 1f;
             this.switchedToDeathIcon = false;
 
-            this.isButtonToggled = false;
-
-            if (RainMeadow.isStoryMode(out var _))
-            {
-                this.label.color = (owner.clientSettings as StoryClientSettings).SlugcatColor(); ;
-                this.arrowSprite.color = (owner.clientSettings as StoryClientSettings).SlugcatColor(); ;
-                this.slugIcon.color = (owner.clientSettings as StoryClientSettings).SlugcatColor(); ;
-
-
-            }
-
-            if (RainMeadow.isArenaMode(out var _))
-            {
-                this.label.color = (owner.clientSettings as ArenaClientSettings).SlugcatColor();
-
-                this.arrowSprite.color = (owner.clientSettings as ArenaClientSettings).SlugcatColor();
-                this.slugIcon.color = (owner.clientSettings as ArenaClientSettings).SlugcatColor();
-
-
-            }
+            this.label.color = customization.SlugcatColor();
+            this.arrowSprite.color = customization.SlugcatColor();
+            this.slugIcon.color = customization.SlugcatColor();
+            this.customization = customization;
         }
 
         public override void Update()
         {
             base.Update();
+            onlineTimeSinceSpawn++;
 
-            if (RainMeadow.rainMeadowOptions.FriendViewClickToActivate.Value && Input.GetKeyDown(RainMeadow.rainMeadowOptions.FriendsListKey.Value))
-            {
-                this.isButtonToggled = !this.isButtonToggled;
-            }
-
-            if (isButtonToggled || (!RainMeadow.rainMeadowOptions.FriendViewClickToActivate.Value && Input.GetKey(RainMeadow.rainMeadowOptions.FriendsListKey.Value)))
+            bool show = owner.owner.showFriends || (owner.clientSettings.isMine && onlineTimeSinceSpawn < 120);
+            if (show || this.alpha > 0)
             {
                 this.lastAlpha = this.alpha;
                 this.blink = 1f;
+                this.alpha = Custom.LerpAndTick(this.alpha, owner.needed && show ? 1 : 0, 0.08f, 0.033333335f);
+
                 if (owner.found)
                 {
-                    this.alpha = Custom.LerpAndTick(this.alpha, owner.needed ? 1 : 0, 0.08f, 0.033333335f);
-
                     this.pos = owner.drawpos;
                     if (owner.pointDir == Vector2.down) pos += new Vector2(0f, 45f);
 
-                    if (owner.PlayerConsideredDead)
+                    if (this.lastAlpha == 0) this.lastPos = pos;
+
+                    if (owner.PlayerConsideredDead) this.alpha = Mathf.Min(this.alpha, 0.5f);
+
+                    if (owner.PlayerConsideredDead != switchedToDeathIcon)
                     {
-                        this.alpha = 0.5f;
-                        if (!switchedToDeathIcon)
-                        {
-                            slugIcon.RemoveFromContainer();
-                            slugIcon = new FSprite("Multiplayer_Death");
-                            owner.hud.fContainers[0].AddChild(slugIcon);
-                            switchedToDeathIcon = true;
-                        }
+                        slugIcon.RemoveFromContainer();
+                        slugIcon = new FSprite(owner.PlayerConsideredDead ? "Multiplayer_Death" : iconString);
+                        owner.hud.fContainers[0].AddChild(slugIcon);
+                        switchedToDeathIcon = owner.PlayerConsideredDead;
                     }
                 }
                 else
@@ -115,19 +108,13 @@ namespace RainMeadow
                 }
 
                 this.counter++;
-            }
-            else
-            {
-                this.alpha = Custom.LerpAndTick(this.alpha, owner.needed ? 0 : 1, 0.08f, 0.0033333335f);
-                this.lastAlpha = this.alpha;
 
             }
-
+            if (!show) this.lastAlpha = this.alpha;
         }
 
         public override void Draw(float timeStacker)
         {
-
             Vector2 vector = Vector2.Lerp(this.lastPos, this.pos, timeStacker) + new Vector2(0.01f, 0.01f);
             float num = Mathf.Pow(Mathf.Max(0f, Mathf.Lerp(this.lastAlpha, this.alpha, timeStacker)), 0.7f);
             this.gradient.x = vector.x;
@@ -145,15 +132,8 @@ namespace RainMeadow
             this.label.y = vector.y + 20f;
             Color color = Color.white;
 
-            if (RainMeadow.isStoryMode(out var _))
-            {
-                color = (owner.clientSettings as StoryClientSettings).SlugcatColor();
+            color = customization.SlugcatColor();
 
-            }
-            if (RainMeadow.isArenaMode(out var _))
-            {
-                color = (owner.clientSettings as ArenaClientSettings).SlugcatColor();
-            }
             if (this.counter % 6 < 2 && this.lastBlink > 0f)
             {
                 if (((Vector3)(Vector4)color).magnitude > 1.56f)
@@ -166,14 +146,37 @@ namespace RainMeadow
                 }
             }
             var lighter_color = color * 1.7f;
-
             this.label.color = lighter_color;
+
+            if (this.label.text != customization.nickname) // we've updated a username
+            {
+                resetUsernameCounter--;
+                this.label.color = color * 3f;
+
+            }
+
+            if (resetUsernameCounter < 10) // snappier fadeaway
+            {
+                this.label.color = lighter_color;
+
+            }
+
+
+            if (resetUsernameCounter < 0)
+            {
+
+                this.label.text = customization.nickname;
+                resetUsernameCounter = 200;
+
+            }
+
             this.arrowSprite.color = lighter_color;
             this.slugIcon.color = lighter_color;
 
             this.label.alpha = num;
             this.arrowSprite.alpha = num;
             this.slugIcon.alpha = num;
+
         }
 
         public override void ClearSprites()

@@ -36,7 +36,18 @@ namespace RainMeadow
             foreach (var room in world.abstractRooms)
             {
                 var rs = new RoomSession(this, room);
-                roomSessions.Add(room.name, rs);
+                try
+                {
+                    roomSessions.Add(room.name, rs);
+                }
+                catch (Exception)
+                {
+                    RainMeadow.Error($"duplicate room {room.name} for rs {rs}");
+                    var name = "";
+                    for (var i = 0; roomSessions.Keys.Contains((name = room.name + "." + i)); i++) ;
+                    RainMeadow.Error($"adding as {name}");
+                    roomSessions.Add(name, rs);
+                }
                 subresources.Add(rs);
             }
             foreach (var item in earlyApos)
@@ -50,6 +61,11 @@ namespace RainMeadow
         {
             this.roomSessions.Clear();
             world = null;
+        }
+
+        protected override void UnavailableImpl()
+        {
+
         }
 
         protected override ResourceState MakeState(uint ts)
@@ -76,13 +92,21 @@ namespace RainMeadow
         {
             [OnlineField]
             public RainCycleData rainCycleData;
-            [OnlineField(nullable:true)]
+            [OnlineField(nullable: true)]
             public Generics.DynamicOrderedUshorts realizedRooms;
             public WorldState() : base() { }
-            public WorldState(WorldSession resource, uint ts) : base(resource, ts) 
+            public WorldState(WorldSession resource, uint ts) : base(resource, ts)
             {
-                if (resource.world != null) {
+                if (resource.world != null)
+                {
                     RainCycle rainCycle = resource.world.rainCycle;
+                    if (rainCycle.brokenAntiGrav == null)
+                    {
+                        rainCycle.brokenAntiGrav = new AntiGravity.BrokenAntiGravity(
+                            resource.world.game.setupValues.gravityFlickerCycleMin,
+                            resource.world.game.setupValues.gravityFlickerCycleMax,
+                            resource.world.game);
+                    }
                     rainCycleData = new RainCycleData(rainCycle);
                     realizedRooms = new(resource.world.abstractRooms.Where(s => s.firstTimeRealized == false).Select(r => (ushort)r.index).ToList());
                 }
@@ -90,14 +114,16 @@ namespace RainMeadow
 
             public override void ReadTo(OnlineResource resource)
             {
-                if (resource.isActive) {
+                if (resource.isActive)
+                {
                     var ws = (WorldSession)resource;
                     RainCycle cycle = ws.world.rainCycle;
                     cycle.preTimer = rainCycleData.preTimer;
                     cycle.timer = rainCycleData.timer;
                     cycle.cycleLength = rainCycleData.cycleLength;
 
-                    if (realizedRooms != null) {
+                    if (realizedRooms != null)
+                    {
                         foreach (var index in realizedRooms.list)
                         {
                             var abstractRoom = ws.world.GetAbstractRoom(index);
@@ -116,7 +142,7 @@ namespace RainMeadow
                         }
                     }
                 }
-                
+
                 base.ReadTo(resource);
             }
         }

@@ -1,4 +1,4 @@
-﻿using System;
+﻿using RWCustom;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -12,7 +12,8 @@ namespace RainMeadow
         public Creature owner;
         public OnlineCreature ownerEntity;
         public MeadowCreatureData creatureData;
-        public MeadowAvatarCustomization customization;
+        private CreatureController creatureController;
+        public MeadowAvatarData customization;
         private RainWorldGame game;
 
         public const int maxEmoteCount = 4;
@@ -24,18 +25,20 @@ namespace RainMeadow
         public Vector2 pos;
         public float time;
         public float alpha;
+        private float rot;
         public static ConditionalWeakTable<Creature, EmoteDisplayer> map = new();
         private List<EmoteTile> tiles = new();
         private byte localVersion;
 
         // this weird thing isn't a uad, it sort of follows the creature and gets updated when the creature updates
         // the "tiles" it adds though are UADs
-        public EmoteDisplayer(Creature owner, OnlineCreature ownerEntity, MeadowCreatureData creatureData, MeadowAvatarCustomization customization)
+        public EmoteDisplayer(Creature owner, OnlineCreature ownerEntity, MeadowCreatureData creatureData, MeadowAvatarData customization)
         {
             RainMeadow.Debug($"EmoteDisplayer created for {owner}");
             this.owner = owner;
             this.ownerEntity = ownerEntity;
             this.creatureData = creatureData;
+            this.creatureController = CreatureController.creatureControllers.GetValue(owner, (c) => throw new KeyNotFoundException(c.ToString()));
             this.customization = customization;
 
             game = owner.abstractPhysicalObject.world.game;
@@ -52,7 +55,6 @@ namespace RainMeadow
 
         public void ProcessRemoteData()
         {
-            OnUpdate();
             if (localVersion != this.creatureData.emotesVersion)
             {
                 RainMeadow.Debug("new version");
@@ -74,7 +76,7 @@ namespace RainMeadow
             lastClock = game.clock;
 
             this.pos = owner.firstChunk.pos;
-            if((owner.inShortcut || owner.room == null) && game.shortcuts.OnScreenPositionOfInShortCutCreature(owner.abstractPhysicalObject.Room.realizedRoom, owner) is Vector2 inShortcutPos)
+            if ((owner.inShortcut || owner.room == null) && game.shortcuts.OnScreenPositionOfInShortCutCreature(owner.abstractPhysicalObject.Room.realizedRoom, owner) is Vector2 inShortcutPos)
             {
                 this.pos = inShortcutPos;
             }
@@ -90,7 +92,19 @@ namespace RainMeadow
                 Mathf.InverseLerp(timeToLive, timeToLive - 1f, time) // fade out
                 );
 
-            if(ownerEntity.isMine && tiles.Count > 0 && time > timeToLive)
+            if (creatureController.specialInput[0].direction != Vector2.zero)
+            {
+                rot = Custom.VecToDeg(creatureData.specialInput.direction);
+            }
+            else if (creatureController.inputDir != Vector2.zero)
+            {
+                rot = Custom.VecToDeg(creatureController.inputDir);
+            }
+            else if (tiles.Count == 0) // reset
+            {
+                rot = 0f;
+            }
+            if (ownerEntity.isMine && tiles.Count > 0 && time > timeToLive)
             {
                 Clear();
                 this.creatureData.emotes.Clear();
@@ -136,7 +150,7 @@ namespace RainMeadow
 
             if (this.creatureData.emotes.Contains(emoteType)) return false;
             if (this.creatureData.emotes.Count >= maxEmoteCount) return false;
-            
+
             if (this.creatureData.emotes.Count == 0)
             {
                 startInGameClock = owner.abstractPhysicalObject.world.game.clock;
@@ -216,7 +230,10 @@ namespace RainMeadow
             public Vector2 pos;
             private float lastAlpha;
             private float alpha;
+            private float lastRot;
             public Vector2 lastPos;
+            private bool rotate;
+            private float rot;
 
             public EmoteTile(Emote emote, int index, EmoteDisplayer emoteHolder)
             {
@@ -226,6 +243,7 @@ namespace RainMeadow
                 this.pos = holder.GetPos(index);
                 this.alpha = holder.alpha;
                 this.lastPos = this.pos;
+                this.rotate = emote == Emote.symbolArrow;
                 lastAlpha = alpha;
             }
 
@@ -236,6 +254,8 @@ namespace RainMeadow
                 this.pos = holder.GetPos(index);
                 lastAlpha = alpha;
                 alpha = holder.alpha;
+                lastRot = rot;
+                rot = holder.rot;
                 if (holder.owner.abstractPhysicalObject.Room is AbstractRoom absroom && absroom.realizedRoom != this.room) { RainMeadow.Debug("EmoteTile destroyed"); Destroy(); }
                 base.Update(eu);
             }
@@ -270,8 +290,10 @@ namespace RainMeadow
                 var newAlpha = Mathf.Lerp(alpha, lastAlpha, timeStacker);
                 for (int i = 0; i < sLeaser.sprites.Length; i++)
                 {
-                    sLeaser.sprites[i].SetPosition(newPos);
-                    sLeaser.sprites[i].alpha = newAlpha;
+                    FSprite fSprite = sLeaser.sprites[i];
+                    fSprite.SetPosition(newPos);
+                    fSprite.alpha = newAlpha;
+                    if (rotate) fSprite.rotation = rot;
                 }
                 if (base.slatedForDeletetion || this.room != rCam.room)
                 {

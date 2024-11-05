@@ -1,8 +1,8 @@
-﻿using UnityEngine;
-using System;
-using RWCustom;
+﻿using Mono.Cecil.Cil;
 using MonoMod.Cil;
-using Mono.Cecil.Cil;
+using RWCustom;
+using System;
+using UnityEngine;
 
 namespace RainMeadow
 {
@@ -16,10 +16,15 @@ namespace RainMeadow
             On.LizardAI.Update += LizardAI_Update;
             // don't drop it
             IL.Lizard.CarryObject += Lizard_CarryObject1;
-            // color
-            On.LizardGraphics.ctor += LizardGraphics_ctor;
+            // swim, bastard
+            IL.Lizard.SwimBehavior += Lizard_SwimBehavior;
+
+            On.Lizard.SwimBehavior += Lizard_SwimBehavior1;
+            On.Lizard.FollowConnection += Lizard_FollowConnection;
+
             // pounce visuals
             On.LizardGraphics.Update += LizardGraphics_Update;
+            On.LizardGraphics.ctor += LizardGraphics_ctor;
             // no violence
             On.Lizard.AttemptBite += Lizard_AttemptBite;
             On.Lizard.DamageAttack += Lizard_DamageAttack;
@@ -30,6 +35,90 @@ namespace RainMeadow
             On.LizardJumpModule.Jump += LizardJumpModule_Jump;
 
             On.LizardBreedParams.TerrainSpeed += LizardBreedParams_TerrainSpeed;
+        }
+
+        private static void Lizard_FollowConnection(On.Lizard.orig_FollowConnection orig, Lizard self, float runSpeed)
+        {
+            if (creatureControllers.TryGetValue(self, out var c))
+            {
+                if (Input.GetKey(KeyCode.L)) RainMeadow.Error("following connection: " + self.followingConnection);
+                if (Input.GetKey(KeyCode.L)) RainMeadow.Error("pre vel: " + self.mainBodyChunk.vel);
+                orig(self, runSpeed);
+                if (Input.GetKey(KeyCode.L)) RainMeadow.Error("post vel: " + self.mainBodyChunk.vel);
+                return;
+            }
+            orig(self, runSpeed);
+        }
+
+        private static void Lizard_SwimBehavior1(On.Lizard.orig_SwimBehavior orig, Lizard self)
+        {
+            orig(self);
+            if (creatureControllers.TryGetValue(self, out var c))
+            {
+                if (self.followingConnection.distance == 0)
+                {
+                    if (Input.GetKey(KeyCode.L)) RainMeadow.Error("following null connection");
+                    var originPos = self.room.GetWorldCoordinate(self.mainBodyChunk.pos);
+                    self.followingConnection = new MovementConnection(MovementConnection.MovementType.Standard, originPos, WorldCoordinate.AddIntVector(originPos, new IntVector2(c.input[0].x, c.input[0].y)), 1);
+                }
+            }
+        }
+
+        private static void Lizard_SwimBehavior(ILContext il)
+        {
+            try
+            {
+                var c = new ILCursor(il);
+
+                // replace "is salamander" checks with custom
+
+                // if (base.Template.type == CreatureTemplate.Type.Salamander || ...
+                ILLabel norun = null;
+                c.GotoNext(moveType: MoveType.After,
+                     i => i.MatchLdarg(0),
+                     i => i.MatchCall<Creature>("get_Template"),
+                     i => i.MatchLdfld<CreatureTemplate>("type"),
+                     i => i.MatchLdsfld<CreatureTemplate.Type>("Salamander"),
+                     i => i.MatchCall("ExtEnum`1<CreatureTemplate/Type>", "op_Inequality"),
+                     i => i.MatchBrfalse(out norun)
+                     );
+                c.Emit(OpCodes.Ldarg_0);
+                c.EmitDelegate((Lizard self) =>
+                {
+                    if (creatureControllers.TryGetValue(self, out var controller))
+                    {
+                        return false;
+                    }
+                    return true;
+                });
+                c.Emit(OpCodes.Brfalse, norun);
+
+                // if (base.Template.type == CreatureTemplate.Type.Salamander || ...
+                ILLabel run = null;
+                c.GotoNext(moveType: MoveType.After,
+                     i => i.MatchLdarg(0),
+                     i => i.MatchCall<Creature>("get_Template"),
+                     i => i.MatchLdfld<CreatureTemplate>("type"),
+                     i => i.MatchLdsfld<CreatureTemplate.Type>("Salamander"),
+                     i => i.MatchCall("ExtEnum`1<CreatureTemplate/Type>", "op_Equality"),
+                     i => i.MatchBrtrue(out run)
+                     );
+                c.Emit(OpCodes.Ldarg_0);
+                c.EmitDelegate((Lizard self) =>
+                {
+                    if (creatureControllers.TryGetValue(self, out var controller))
+                    {
+                        return true;
+                    }
+                    return false;
+                });
+                c.Emit(OpCodes.Brtrue, run);
+            }
+            catch (Exception e)
+            {
+                RainMeadow.Error(e);
+                throw;
+            }
         }
 
         private static LizardBreedParams.SpeedMultiplier LizardBreedParams_TerrainSpeed(On.LizardBreedParams.orig_TerrainSpeed orig, LizardBreedParams self, AItile.Accessibility acc)
@@ -57,11 +146,13 @@ namespace RainMeadow
 
         private static void Lizard_Act(On.Lizard.orig_Act orig, Lizard self)
         {
+            if (Input.GetKey(KeyCode.L)) RainMeadow.Debug($"liz act pre");
             if (creatureControllers.TryGetValue(self, out var c) && c is LizardController l)
             {
                 l.ConsciousUpdate();
             }
             orig(self);
+            if (Input.GetKey(KeyCode.L)) RainMeadow.Debug($"liz act post");
         }
 
         private static void LizardAI_Update(On.LizardAI.orig_Update orig, LizardAI self)
@@ -99,8 +190,12 @@ namespace RainMeadow
         {
             if (creatureControllers.TryGetValue(self.creature.realizedCreature, out var c))
             {
-                if (originPos == self.destination)// such a silly behavior...
-                    return new MovementConnection(MovementConnection.MovementType.Standard, originPos, WorldCoordinate.AddIntVector(originPos, new IntVector2(c.input[0].x, c.input[0].y)), 1);
+                if (originPos == self.destination || (actuallyFollowingThisPath && self.lookingForImpossiblePath))
+                {
+                    if (Input.GetKey(KeyCode.L) && actuallyFollowingThisPath) RainMeadow.Debug("returning override. lookingForImpossiblePath? " + self.lookingForImpossiblePath);
+                    return new MovementConnection(MovementConnection.MovementType.Standard, originPos, self.destination, 1);
+                }
+                return orig(self, originPos, bodyDirection, actuallyFollowingThisPath);
             }
 
             return orig(self, originPos, bodyDirection, actuallyFollowingThisPath);
@@ -122,6 +217,22 @@ namespace RainMeadow
                 return;
             }
             orig(self, creature);
+        }
+
+        private static void LizardGraphics_ctor(On.LizardGraphics.orig_ctor orig, LizardGraphics self, PhysicalObject ow)
+        {
+            orig(self, ow);
+            if (creatureControllers.TryGetValue(self.lizard, out var c))
+            {
+                if (c.customization.skin == MeadowProgression.Skin.Lizard_Axo)
+                {
+                    self.blackSalamander = false;
+                }
+                if (c.customization.skin == MeadowProgression.Skin.Lizard_Sala)
+                {
+                    self.blackSalamander = true;
+                }
+            }
         }
 
         private static void LizardGraphics_Update(On.LizardGraphics.orig_Update orig, LizardGraphics self)
@@ -174,55 +285,62 @@ namespace RainMeadow
             }
         }
 
-        private static void LizardGraphics_ctor(On.LizardGraphics.orig_ctor orig, LizardGraphics self, PhysicalObject ow)
+        public LizardController(Lizard lizard, OnlineCreature oc, int playerNumber, MeadowAvatarData customization) : base(lizard, oc, playerNumber, customization)
         {
-            orig(self, ow);
-            if (RainMeadow.creatureCustomizations.TryGetValue(ow as Creature, out var c))
-            {
-                var col = self.lizard.effectColor;
-                c.ModifyBodyColor(ref col);
-                RainMeadow.Debug($"{self.lizard} color from {self.lizard.effectColor} to {col}");
-                self.lizard.effectColor = col;
-            }
-        }
-
-        public LizardController(Lizard lizard, OnlineCreature oc, int playerNumber, MeadowAvatarCustomization customization) : base(lizard, oc, playerNumber, customization){
-
             this.lizard = lizard;
             lizard.abstractCreature.personality.energy = 1f; // stop being lazy
+            jumpFactor = 1.2f;
+            runSpeed = 4.5f;
+            // this.needsLight = false; // has builtin light
+            // or so I thought but vanilla light is too small, give it two!
+            canZeroGClimb = true;
+
+            var col = lizard.effectColor;
+            customization.ModifyBodyColor(ref col);
+            RainMeadow.Debug($"{lizard} color from {lizard.effectColor} to {col}");
+            lizard.effectColor = col;
         }
 
         public Lizard lizard;
-        
-        public override bool HasFooting
+
+        public override bool HasFooting => lizard.inAllowedTerrainCounter > 10 || lizard.gripPoint != null;
+
+        public override bool IsOnGround => IsTileGround(1, 0, -1) || IsTileGround(0, 0, -1) || (!IsOnPole && IsTileGround(2, 0, -1));
+
+        public override bool IsOnPole => GetTile(0).AnyBeam || GetTile(1).AnyBeam;
+
+        public override bool IsOnCorridor => GetAITile(0).narrowSpace;
+
+        public override bool IsOnClimb
         {
             get
             {
-                return lizard.inAllowedTerrainCounter > 10 || lizard.gripPoint != null;
+                if (WallClimber)
+                {
+                    var acc = GetAITile(0).acc;
+                    if ((acc == AItile.Accessibility.Climb && !GetTile(0).AnyBeam) || acc == AItile.Accessibility.Wall)
+                    {
+                        return true;
+                    }
+                    acc = GetAITile(1).acc;
+                    if ((acc == AItile.Accessibility.Climb && !GetTile(1).AnyBeam) || acc == AItile.Accessibility.Wall)
+                    {
+                        return true;
+                    }
+                }
+                return false;
             }
         }
 
-        public override bool OnGround
+        public override bool CanPounce
         {
             get
             {
-                return IsTileGround(1, 0, -1) || IsTileGround(0, 0, -1) || (!OnPole && IsTileGround(2, 0, -1));
-            }
-        }
-
-        public override bool OnPole
-        {
-            get
-            {
-                return lizard.gripPoint != null || GetTile(0).AnyBeam || GetTile(1).AnyBeam;
-            }
-        }
-
-        public override bool OnCorridor
-        {
-            get
-            {
-                return GetAITile(0).narrowSpace || GetAITile(1).narrowSpace;
+                if (lizard.jumpModule != null)
+                {
+                    return HasFooting;
+                }
+                return base.CanPounce;
             }
         }
 
@@ -267,7 +385,7 @@ namespace RainMeadow
 
         protected override void LookImpl(Vector2 pos)
         {
-            if(lizard.graphicsModule != null)
+            if (lizard.graphicsModule != null)
             {
                 (lizard.graphicsModule as LizardGraphics).lookPos = pos;
             }
@@ -277,9 +395,9 @@ namespace RainMeadow
         {
             base.ConsciousUpdate();
 
-            if(lizard.jumpModule is LizardJumpModule jumpModule)
+            if (lizard.jumpModule is LizardJumpModule jumpModule)
             {
-                if(this.superLaunchJump > 10)
+                if (this.superLaunchJump > 10)
                 {
                     if (input[0].jmp)
                     {
@@ -315,38 +433,44 @@ namespace RainMeadow
             }
 
             // lost footing doesn't auto-recover
-            if (lizard.inAllowedTerrainCounter < 10)
+            if (lizard.inAllowedTerrainCounter < 10 && creature.room.gravity > zeroGTreshold)
             {
-                if ((forceJump > 0 || input[0].y < 1) && !(creature.bodyChunks[0].contactPoint.y == -1 || creature.bodyChunks[1].contactPoint.y == -1 || creature.IsTileSolid(1, 0, -1) || creature.IsTileSolid(0, 0, -1)))
+                if (!(WallClimber && input[0].y == 1) && lizard.gripPoint == null && creature.bodyChunks[0].contactPoint.y != -1 && creature.bodyChunks[1].contactPoint.y != -1 && !creature.IsTileSolid(1, 0, -1) && !creature.IsTileSolid(0, 0, -1))
                 {
                     lizard.inAllowedTerrainCounter = 0;
                 }
             }
             // footing recovers faster on climbing ledges etc
-            if (lizard.inAllowedTerrainCounter < 20 && input[0].x != 0 && (creature.bodyChunks[0].contactPoint.x == input[0].x || creature.bodyChunks[1].contactPoint.x == input[0].x))
+            if (forceJump <= 0 && lizard.inAllowedTerrainCounter < 20 && input[0].x != 0 && (creature.bodyChunks[0].contactPoint.x == input[0].x || creature.bodyChunks[1].contactPoint.x == input[0].x))
             {
                 if (lizard.inAllowedTerrainCounter > 0) lizard.inAllowedTerrainCounter = Mathf.Max(lizard.inAllowedTerrainCounter + 1, 10);
             }
 
             // body points to input
-            if(inputDir.magnitude > 0f && !lockInPlace)
+            if (inputDir.magnitude > 0f && !lockInPlace)
             {
-                creature.bodyChunks[0].vel += inputDir;
-                creature.bodyChunks[2].vel -= inputDir;
-                if (!HasFooting) // some air control
+                creature.bodyChunks[0].vel += inputDir * 0.4f;
+                creature.bodyChunks[2].vel -= inputDir * 0.4f;
+            }
+
+            // climb that damn ledge
+            if (input[0].x != 0)
+            {
+                for (int i = 0; i < 2; i++)
                 {
-                    var bc = creature.bodyChunks[1];
-                    var xpeed = bc.vel.x;
-                    var newspeed = xpeed + inputDir.x * 0.5f;
-                    var abs = Mathf.Abs(xpeed);
-                    if (abs < 6f || abs < Mathf.Abs(xpeed)) // either slow enough or slower than before
+                    if (creature.bodyChunks[i].contactPoint.x == input[0].x
+                    && creature.bodyChunks[i].vel.y < 4f
+                    && GetTile(i, input[0].x, 0).Solid
+                    && !GetTile(i, 0, 1).Solid
+                    && !GetTile(i, input[0].x, 1).Solid
+                    )
                     {
-                        bc.vel.x = newspeed;
+                        creature.bodyChunks[0].vel += new Vector2(0f, 2f);
                     }
                 }
             }
 
-            if(lizard.timeSpentTryingThisMove < 20) // don't panic
+            if (lizard.timeSpentTryingThisMove < 20) // don't panic
             {
                 lizard.desperationSmoother = 0f;
             }
@@ -356,21 +480,21 @@ namespace RainMeadow
         {
             lizard.AI.behavior = LizardAI.Behavior.Travelling;
             var howmuch = lizard.lizardParams.bodySizeFac * magnitude;
-            
+
             lizard.AI.runSpeed = Custom.LerpAndTick(lizard.AI.runSpeed, howmuch, 0.2f, 0.05f);
             lizard.AI.excitement = Custom.LerpAndTick(lizard.AI.excitement, 0.8f, 0.1f, 0.05f);
 
             var tile0 = creature.room.GetTile(creature.bodyChunks[0].pos);
 
             // greater air friction because uhhh didnt feel right
-            if (lizard.applyGravity && creature.room.aimap.TileAccessibleToCreature(tile0.X, tile0.Y, lizard.Template))
+            if (lizard.applyGravity) // && creature.room.aimap.TileAccessibleToCreature(tile0.X, tile0.Y, lizard.Template))
             {
                 for (int i = 0; i < creature.bodyChunks.Length; i++)
                 {
                     BodyChunk bodyChunk = lizard.bodyChunks[i];
-                    if (bodyChunk.submersion < 0.5f)
+                    if (Mathf.Abs(bodyChunk.vel.x) > runSpeed * 2f)
                     {
-                        bodyChunk.vel.x *= 0.95f;
+                        bodyChunk.vel.x *= 0.98f;
                     }
                 }
             }
@@ -403,7 +527,7 @@ namespace RainMeadow
                 {
                     lizard.bodyChunks[i].vel *= 0.5f;
                 }
-                lizard.inAllowedTerrainCounter = Mathf.Min(lizard.inAllowedTerrainCounter, 5);
+                lizard.inAllowedTerrainCounter = Mathf.Min(lizard.inAllowedTerrainCounter, 15);
             }
         }
 
@@ -424,6 +548,15 @@ namespace RainMeadow
             {
                 lizard.bubble = Math.Max(this.lizard.bubble, 10);
                 lizard.bubbleIntensity = Mathf.Max(0.4f, lizard.bubbleIntensity);
+            }
+        }
+
+        protected override void PointImpl(Vector2 dir)
+        {
+            if (lizard.graphicsModule is LizardGraphics lg && !lg.culled)
+            {
+                lg.limbs[0].mode = Limb.Mode.HuntAbsolutePosition;
+                lg.limbs[0].absoluteHuntPos = lizard.DangerPos + dir * 100f;
             }
         }
     }
