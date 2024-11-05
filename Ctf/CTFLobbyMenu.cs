@@ -26,7 +26,7 @@ namespace RainMeadow
         {
             base.Update();
             if (!OnlineManager.lobby.isOwner)
-                playButton.buttonBehav.greyedOut = !gamemode.IsInGame;
+                playButton.buttonBehav.greyedOut = !gamemode.isInGame;
         }
 
         private void StartGame(SimplerButton button)

@@ -13,7 +13,7 @@ namespace RainMeadow
             public static OnlineGameModeType Meadow = new("Meadow", true);
             public static OnlineGameModeType Story = new("Story", true);
             public static OnlineGameModeType ArenaCompetitive = new("ArenaCompetitive", true);
-            public static OnlineGameModeType Ctf = new("Idk", true);
+            public static OnlineGameModeType Ctf = new("Ctf", true);
 
             public static Dictionary<OnlineGameModeType, string> descriptions = new()
             {

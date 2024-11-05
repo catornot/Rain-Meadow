@@ -18,6 +18,7 @@ namespace RainMeadow
 
         protected OnlineState()
         {
+            RainMeadow.Debug(GetType());
             handler = handlersByType[GetType()];
             valueFlags = new bool[handler.ngroups];
         }

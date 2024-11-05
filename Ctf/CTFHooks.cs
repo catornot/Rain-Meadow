@@ -15,6 +15,7 @@ namespace RainMeadow
             On.Spear.HitSomething += Spear_HitSomething;
             On.Weapon.HitThisObject += CTF_Weapon_HitThisObject;
             On.RegionGate.ctor += ctf_RegionGate_ctor;
+            On.RainWorldGame.GoToDeathScreen += ctf_RainWorldGame_GoToDeathScreen;
         }
 
         bool Spear_HitSomething(On.Spear.orig_HitSomething orig, Spear self, SharedPhysics.CollisionResult result, bool eu)

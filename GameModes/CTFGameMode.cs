@@ -8,7 +8,7 @@ namespace RainMeadow
     {
         private int ImcTeamAmount = 0;
         private int MilitiaTeamAmount = 0;
-        public bool IsInGame = true;
+        public bool isInGame = true;
 
         private static HashSet<PlacedObject.Type> ItemBlackList = new HashSet<PlacedObject.Type>
         {
@@ -33,11 +33,6 @@ namespace RainMeadow
 
         public override bool AllowedInMode(PlacedObject item)
         {
-            //return (
-            //    OnlineGameModeHelpers.PlayerGrablableItems.Contains(item.type) ||
-            //    OnlineGameModeHelpers.creatureRelatedItems.Contains(item.type) ||
-            //    OnlineGameModeHelpers.cosmeticItems.Contains(item.type)
-            //) && !ItemBlackList.Contains(item.type);
             return !ItemBlackList.Contains(item.type);
         }
         public override bool ShouldSpawnRoomItems(RainWorldGame game, RoomSession roomSession)
@@ -101,13 +96,17 @@ namespace RainMeadow
 
         public override void ConfigureAvatar(OnlineCreature onlineCreature)
         {
-            RainMeadow.Debug(onlineCreature);
             onlineCreature.AddData(avatarSettings);
         }
 
         public override void ResourceAvailable(OnlineResource onlineResource)
         {
             base.ResourceAvailable(onlineResource);
+
+            if (onlineResource is Lobby lobby)
+            {
+                lobby.AddData(new CtfLobbyData());
+            }
         }
 
         public override void ResourceActive(OnlineResource onlineResource)
@@ -127,6 +126,7 @@ namespace RainMeadow
         public override void PlayerLeftLobby(OnlinePlayer player)
         {
             base.PlayerLeftLobby(player);
+
             if (player == lobby.owner)
             {
                 OnlineManager.instance.manager.RequestMainProcessSwitch(ProcessManager.ProcessID.MainMenu);
@@ -138,21 +138,24 @@ namespace RainMeadow
             if (!lobby.isOwner)
                 return;
 
+            RainMeadow.Debug("New Player [" + player.id.name + "] joined, team selected");
             if (ImcTeamAmount > MilitiaTeamAmount)
             {
                 MilitiaTeamAmount++;
-                player.InvokeOnceRPC(CtfRPCs.SetTeam, (int)SlugTeam.Militia);
+                player.InvokeRPC(CtfRPCs.SetTeam, (int)SlugTeam.Militia, ImcTeamAmount + MilitiaTeamAmount);
             }
             else
             {
                 ImcTeamAmount++;
-                player.InvokeOnceRPC(CtfRPCs.SetTeam, (int)SlugTeam.IMC);
+                player.InvokeRPC(CtfRPCs.SetTeam, (int)SlugTeam.IMC, ImcTeamAmount + MilitiaTeamAmount);
             }
         }
 
         public override void AddClientData()
         {
             base.AddClientData();
+
+            clientSettings.AddData(ctfClientSettings);
         }
 
         public override void LobbyTick(uint tick)

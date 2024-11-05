@@ -13,9 +13,9 @@ namespace RainMeadow
 #elif STORYP2P
         public static string localGameMode = "Story";
 #elif FREEROAMP2P
-        public static string localGameMode = "FreeRoam";
+        public static string localGameMode = "Ctf";
 #else
-        public static string localGameMode = "Idk";
+        public static string localGameMode = "Meadow";
 #endif
 
         public class LocalPlayerId : MeadowPlayerId
