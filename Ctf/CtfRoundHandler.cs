@@ -1,4 +1,5 @@
-﻿using RainMeadow.Properties;
+﻿using RainMeadow.Ctf;
+using RainMeadow.Properties;
 using Steamworks;
 using System;
 using System.Collections.Generic;
@@ -20,36 +21,14 @@ namespace RainMeadow
 
         }
 
-        public static void SelectTeam()
+        public static string ShelterSpawn(CTFClientSettings settings)
         {
-            // iterators would do this whole thing in only two lines >:(
-            int blueCount = 0;
-            int redCount = 0;
-            foreach (ClientSettings settings in OnlineManager.lobby.clientSettings.Values)
-            {
-                if (settings is CTFClientSettings)
-                {
-                    CTFClientSettings ctfSettings = settings as CTFClientSettings;
-                    switch (ctfSettings.team)
-                    {
-                        case CTFClientSettings.SlugTeam.Blue:
-                            blueCount++;
-                            break;
-                        case CTFClientSettings.SlugTeam.Red:
-                            redCount++;
-                            break;
-                    }
-                }
-            }
-
-            CTFClientSettings.SlugTeam team = blueCount > redCount ? CTFClientSettings.SlugTeam.Red : CTFClientSettings.SlugTeam.Blue;
-            (OnlineManager.lobby.gameMode as CTFGameMode).ctfClientSettings.team = team;
-            RainMeadow.Debug("Selected team is " + team);
+            return settings.team == SlugTeam.IMC ? "HI_S01" : "HI_S05";
         }
 
         public static WorldCoordinate SelectRespawnRoom(CTFClientSettings settings)
         {
-            string spawnShelterRoomStr = settings.team == CTFClientSettings.SlugTeam.Red ? "HI_S01" : "HI_S05";
+            string spawnShelterRoomStr = ShelterSpawn(settings);
 
             int spawnShelterRoom = RainWorld.roomNameToIndex.TryGetValue(spawnShelterRoomStr, out var val) ? val : -1;
             RainMeadow.Debug("spawnShelterRoom is " + spawnShelterRoom);

@@ -1,23 +1,33 @@
-﻿using System.Collections.Generic;
+﻿using RainMeadow.Ctf;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace RainMeadow
 {
     public class CTFGameMode : OnlineGameMode
     {
-        private int redTeamAmount = 0;
-        private int blueTeamAmount = 0;
+        private int ImcTeamAmount = 0;
+        private int MilitiaTeamAmount = 0;
+        public bool IsInGame = true;
+
         private static HashSet<PlacedObject.Type> ItemBlackList = new HashSet<PlacedObject.Type>
         {
             PlacedObject.Type.DangleFruit,
             PlacedObject.Type.DeadHazer,
             PlacedObject.Type.VultureGrub,
             PlacedObject.Type.DeadVultureGrub,
+            PlacedObject.Type.KarmaFlower,
+            PlacedObject.Type.Mushroom,
         };
-        public CTFClientSettings ctfClientSettings => clientSettings as CTFClientSettings;
+
+        public CTFClientSettings ctfClientSettings;
+        public SlugcatCustomization avatarSettings;
 
         public CTFGameMode(Lobby lobby) : base(lobby)
         {
+            avatarSettings = new SlugcatCustomization() { nickname = OnlineManager.mePlayer.id.name };
+            ctfClientSettings = new CTFClientSettings();
+            ctfClientSettings.playingAs = SlugcatStats.Name.White;
         }
 
 
@@ -68,6 +78,9 @@ namespace RainMeadow
         {
             game.manager.rainWorld.options.friendlyFire = true;
             game.manager.rainWorld.options.friendlySteal = true;
+            game.manager.rainWorld.options.fpsCap = 120;
+            game.manager.rainWorld.options.dlcTutorialShown = false;
+            game.manager.rainWorld.options.friendlyLizards = false;
             return SlugcatStats.Name.Red;
         }
 
@@ -81,37 +94,25 @@ namespace RainMeadow
             return null; // game runs default code
         }
 
-        internal override void NewEntity(OnlineEntity oe, OnlineResource inResource)
+        public override void NewEntity(OnlineEntity oe, OnlineResource inResource)
         {
-
+            base.NewEntity(oe, inResource);
         }
 
-        internal override void AddAvatarSettings()
-        {
-            RainMeadow.Debug("Adding avatar settings for ctf!");
-            clientSettings = new CTFClientSettings(new OnlineEntity.EntityId(OnlineManager.mePlayer.inLobbyId, OnlineEntity.EntityId.IdType.settings, 0), OnlineManager.mePlayer);
-            clientSettings.EnterResource(lobby);
-        }
-
-        internal override void SetAvatar(OnlineCreature onlineCreature)
+        public override void ConfigureAvatar(OnlineCreature onlineCreature)
         {
             RainMeadow.Debug(onlineCreature);
-            this.avatar = onlineCreature;
-            this.clientSettings.avatarId = onlineCreature.id;
+            onlineCreature.AddData(avatarSettings);
         }
 
-        internal override void ResourceAvailable(OnlineResource onlineResource)
+        public override void ResourceAvailable(OnlineResource onlineResource)
         {
-
+            base.ResourceAvailable(onlineResource);
         }
 
-        internal override void ResourceActive(OnlineResource onlineResource)
+        public override void ResourceActive(OnlineResource onlineResource)
         {
-            if (onlineResource is Lobby)
-            {
-                AddAvatarSettings();
-                OnlineManager.instance.manager.RequestMainProcessSwitch(MenuProcessId());
-            }
+            base.ResourceActive(onlineResource);
         }
 
         public override bool PlayerCanOwnResource(OnlinePlayer from, OnlineResource onlineResource)
@@ -123,11 +124,7 @@ namespace RainMeadow
             return true;
         }
 
-        public override void LobbyReadyCheck()
-        {
-
-        }
-        internal override void PlayerLeftLobby(OnlinePlayer player)
+        public override void PlayerLeftLobby(OnlinePlayer player)
         {
             base.PlayerLeftLobby(player);
             if (player == lobby.owner)
@@ -136,37 +133,40 @@ namespace RainMeadow
             }
         }
 
-        internal override void NewPlayerInLobby(OnlinePlayer player)
+        public override void NewPlayerInLobby(OnlinePlayer player)
         {
+            if (!lobby.isOwner)
+                return;
 
+            if (ImcTeamAmount > MilitiaTeamAmount)
+            {
+                MilitiaTeamAmount++;
+                player.InvokeOnceRPC(CtfRPCs.SetTeam, (int)SlugTeam.Militia);
+            }
+            else
+            {
+                ImcTeamAmount++;
+                player.InvokeOnceRPC(CtfRPCs.SetTeam, (int)SlugTeam.IMC);
+            }
         }
 
-        internal override void LobbyTick(uint tick)
+        public override void AddClientData()
         {
-
+            base.AddClientData();
         }
 
-        //internal override void Customize(Creature creature, OnlineCreature oc)
-        //{
-        //    if (lobby.playerAvatars.Any(a => a.Value == oc.id))
-        //        if (lobby.playerAvatars.Any(a => a.Value == oc.id))
-        //        {
-        //            RainMeadow.Debug($"Customizing avatar {creature} for {oc.owner}");
-        //            var settings = lobby.activeEntities.First(em => em is ClientSettings avs && avs.avatarId == oc.id) as ClientSettings;
+        public override void LobbyTick(uint tick)
+        {
+            base.LobbyTick(tick);
+        }
 
-        //            // this adds the entry in the CWT
-        //            var mcc = RainMeadow.creatureCustomizations.GetValue(creature, (c) => settings.MakeCustomization());
-
-        //            // todo one day come back to making emote support universal
-        //            //if (oc.TryGetData<MeadowCreatureData>(out var mcd))
-        //            //{
-        //            //    EmoteDisplayer.map.GetValue(creature, (c) => new EmoteDisplayer(creature, oc, mcd, mcc));
-        //            //}
-        //            //else
-        //            //{
-        //            //    RainMeadow.Error("missing mcd?? " + oc);
-        //            //}
-        //        }
-        //}
+        public override void Customize(Creature creature, OnlineCreature oc)
+        {
+            if (oc.TryGetData<SlugcatCustomization>(out var data))
+            {
+                RainMeadow.Debug(oc);
+                RainMeadow.creatureCustomizations.GetValue(creature, (c) => data);
+            }
+        }
     }
 }

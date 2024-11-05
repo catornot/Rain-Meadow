@@ -25,7 +25,7 @@ namespace RainMeadow
                 && OnlineManager.lobby.gameMode is CTFGameMode
                 && result.obj != null
                 && result.obj is Player playerHit
-                && self is Spear 
+                && self is Spear
                 && self.thrownBy != null
                 && self.thrownBy is Player
                 && playerHit.SpearStick(self, Mathf.Lerp(0.55f, 0.62f, UnityEngine.Random.value), result.chunk, result.onAppendagePos, self.firstChunk.vel)
