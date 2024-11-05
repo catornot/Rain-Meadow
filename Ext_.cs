@@ -40,6 +40,7 @@ namespace RainMeadow
             public static AbstractPhysicalObject.AbstractObjectType MeadowTokenBlue = new("MeadowTokenBlue", true);
             public static AbstractPhysicalObject.AbstractObjectType MeadowTokenGold = new("MeadowTokenGold", true);
             public static AbstractPhysicalObject.AbstractObjectType MeadowGhost = new("MeadowGhost", true);
+            public static AbstractPhysicalObject.AbstractObjectType CtfFlag = new("CtfFlag", true);
         }
 
         public class Ext_SoundID

@@ -11,9 +11,26 @@ namespace RainMeadow
     internal class CtfRPCs
     {
         [RPCMethod]
-        public static void FlagCaptured(int team)
+        public static void FlagCaptured(int team, int index)
         {
-            var game = (RWCustom.Custom.rainWorld.processManager.currentMainLoop as RainWorldGame);
+            Lobby lobby = OnlineManager.lobby;
+            CTFGameMode gamemode = (lobby.gameMode as CTFGameMode);
+            if (lobby.isOwner)
+            {
+                if (gamemode.ctfdata.scoringIndex <= index)
+                    return;
+
+                gamemode.ctfdata.score[team]++;
+                gamemode.ctfdata.scoringIndex = index + 1;
+            } else
+            {
+                lobby.owner.InvokeRPC(FlagCaptured, team, index);
+            }
+        }
+
+        [RPCMethod]
+        public static void FlagCapturedSound(int team, int index)
+        {
 
         }
 

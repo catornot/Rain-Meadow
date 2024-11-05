@@ -4,11 +4,15 @@ using System.Linq;
 
 namespace RainMeadow
 {
-    internal class CtfLobbyData : OnlineResource.ResourceData
+    public class CtfLobbyData : OnlineResource.ResourceData
     {
         public List<OnlinePlayer> Militia = new List<OnlinePlayer>(32);
 
         public List<OnlinePlayer> IMC = new List<OnlinePlayer>(32);
+
+        public List<int> score = new List<int> { 0, 0, 0, 0 };
+
+        public int scoringIndex = 0;
 
         public CtfLobbyData() { }
 
@@ -28,6 +32,12 @@ namespace RainMeadow
             [OnlineField(nullable = true)]
             public Generics.DynamicUnorderedUshorts IMC;
 
+            [OnlineField]
+            public List<int> score;
+
+            [OnlineField]
+            public int scoringIndex;
+
             public State() { }
 
             public State(CtfLobbyData ctfLobbyData, OnlineResource onlineResource)
@@ -36,6 +46,8 @@ namespace RainMeadow
                 isInGame = RWCustom.Custom.rainWorld.processManager.currentMainLoop is RainWorldGame;
                 Militia = new(ctfLobbyData.Militia.Select(p => p.inLobbyId).ToList());
                 IMC = new(ctfLobbyData.IMC.Select(p => p.inLobbyId).ToList());
+                score = ctfLobbyData.score;
+                scoringIndex = ctfLobbyData.scoringIndex;
             }
 
             public override void ReadTo(OnlineResource.ResourceData res, OnlineResource resource)
@@ -46,6 +58,8 @@ namespace RainMeadow
 
                 data.Militia = Militia.list.Select(i => OnlineManager.lobby.PlayerFromId(i)).Where(p => p != null).ToList();
                 data.IMC = IMC.list.Select(i => OnlineManager.lobby.PlayerFromId(i)).Where(p => p != null).ToList();
+                data.score = score;
+                data.scoringIndex = scoringIndex;
             }
 
             public override Type GetDataType() => typeof(CtfLobbyData);

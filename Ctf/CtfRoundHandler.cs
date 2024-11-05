@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static RainMeadow.RainMeadow;
 
 namespace RainMeadow
 {
@@ -21,28 +22,41 @@ namespace RainMeadow
 
         }
 
-        public static string ShelterSpawn(CTFClientSettings settings)
+        public static string ShelterSpawnForTeam(SlugTeam team)
         {
-            return settings.team == SlugTeam.IMC ? "HI_S01" : "HI_S05";
+            return team == SlugTeam.IMC ? "HI_S01" : "HI_S05";
         }
 
         public static WorldCoordinate SelectRespawnRoom(CTFClientSettings settings)
         {
-            string spawnShelterRoomStr = ShelterSpawn(settings);
+            string spawnShelterRoomStr = ShelterSpawnForTeam(settings.team);
 
             int spawnShelterRoom = RainWorld.roomNameToIndex.TryGetValue(spawnShelterRoomStr, out var val) ? val : -1;
             RainMeadow.Debug("spawnShelterRoom is " + spawnShelterRoom);
             return new WorldCoordinate(spawnShelterRoom, -1, -1, 0);
         }
 
-        // desync 100% this is so bad -_-
         public static void RespawnSlugCat(RainWorldGame game, AbstractCreature absPlayer)
         {
             // WorldSession session = OnlineManager.lobby.worldSessions.First().Value;
 
-            WorldCoordinate worldPos = SelectRespawnRoom((OnlineManager.lobby.gameMode as CTFGameMode).ctfClientSettings);
+            CTFClientSettings settings = (OnlineManager.lobby.gameMode as CTFGameMode).ctfClientSettings;
+            WorldCoordinate worldPos = SelectRespawnRoom(settings);
 
             AbstractRoom newRoom = game.overWorld.activeWorld.GetAbstractRoom(worldPos);
+
+            var flag = new AbstractCtfFlag(game.world, Ext_PhysicalObjectType.CtfFlag, null, worldPos, game.GetNewID(), settings.team);
+            newRoom.AddEntity(flag);
+            if (flag.realizedObject == null)
+            {
+                flag.Realize();
+            }
+
+            // realize room if it's nto realized
+            if (newRoom.realizedRoom == null)
+            {
+                newRoom.RealizeRoom(game.world, game);
+            }
 
             PlayerState state = (absPlayer.state as PlayerState);
             Player player = absPlayer.realizedCreature as Player;

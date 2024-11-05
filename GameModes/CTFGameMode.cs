@@ -22,6 +22,7 @@ namespace RainMeadow
 
         public CTFClientSettings ctfClientSettings;
         public SlugcatCustomization avatarSettings;
+        public CtfLobbyData ctfdata;
 
         public CTFGameMode(Lobby lobby) : base(lobby)
         {
@@ -51,7 +52,6 @@ namespace RainMeadow
         {
             game.manager.rainWorld.options.friendlyFire = true;
             game.manager.rainWorld.options.friendlySteal = true;
-            game.manager.rainWorld.options.fpsCap = 120;
             game.manager.rainWorld.options.dlcTutorialShown = false;
             game.manager.rainWorld.options.friendlyLizards = false;
             return SlugcatStats.Name.White;
@@ -73,7 +73,7 @@ namespace RainMeadow
 
             if (onlineResource is Lobby lobby)
             {
-                lobby.AddData(new CtfLobbyData());
+                ctfdata = lobby.AddData(new CtfLobbyData());
             }
         }
 

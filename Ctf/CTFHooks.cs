@@ -1,4 +1,5 @@
-﻿using System;
+﻿using RainMeadow.Ctf;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,6 +17,7 @@ namespace RainMeadow
             On.Weapon.HitThisObject += CTF_Weapon_HitThisObject;
             On.RegionGate.ctor += ctf_RegionGate_ctor;
             On.RainWorldGame.GoToDeathScreen += ctf_RainWorldGame_GoToDeathScreen;
+            On.HUD.HUD.InitSinglePlayerHud += ctf_HUD_InitSinglePlayerHud;
         }
 
         bool Spear_HitSomething(On.Spear.orig_HitSomething orig, Spear self, SharedPhysics.CollisionResult result, bool eu)
@@ -86,6 +88,15 @@ namespace RainMeadow
             else
             {
                 orig(self, malnourished);
+            }
+        }
+
+        private void ctf_HUD_InitSinglePlayerHud(On.HUD.HUD.orig_InitSinglePlayerHud orig, HUD.HUD self, RoomCamera cam)
+        {
+            orig(self, cam);
+            if (OnlineManager.lobby != null && OnlineManager.lobby.gameMode is CTFGameMode gamemode)
+            {
+                self.AddPart(new ScoreHud(self, self.fContainers[0], gamemode));
             }
         }
     }

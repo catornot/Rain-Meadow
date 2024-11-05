@@ -8,7 +8,7 @@ namespace RainMeadow
 {
     public class OnlineHUD : HudPart
     {
-        private List<PlayerSpecificOnlineHud> indicators = new();
+        public List<PlayerSpecificOnlineHud> indicators = new();
 
         private RoomCamera camera;
         private readonly OnlineGameMode onlineGameMode;
@@ -34,7 +34,7 @@ namespace RainMeadow
             base.Draw(timeStacker);
         }
 
-        public void UpdatePlayers()
+        public virtual void UpdatePlayers()
         {
             var clientSettings = OnlineManager.lobby.clientSettings.Values.OfType<ClientSettings>();
             var currentSettings = indicators.Select(i => i.clientSettings).ToList();

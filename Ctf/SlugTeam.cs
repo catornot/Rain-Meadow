@@ -6,5 +6,5 @@
         Unassigned,
         Militia,
         IMC,
-    }
+    }    
 }

@@ -39,7 +39,7 @@ namespace RainMeadow
             manager.rainWorld.progression.ClearOutSaveStateFromMemory();
             manager.rainWorld.progression.miscProgressionData.currentlySelectedSinglePlayerSlugcat = SlugcatStats.Name.Red;
             manager.menuSetup.startGameCondition = ProcessManager.MenuSetup.StoryGameInitCondition.RegionSelect;
-            manager.menuSetup.regionSelectRoom = CTFRoundHandler.ShelterSpawn(gamemode.ctfClientSettings);
+            manager.menuSetup.regionSelectRoom = CTFRoundHandler.ShelterSpawnForTeam(gamemode.ctfClientSettings.team);
             manager.RequestMainProcessSwitch(ProcessManager.ProcessID.Game);
         }
 
