@@ -1,18 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static RainMeadow.OnlineResource.ResourceData;
-using static RainMeadow.OnlineState;
 
 namespace RainMeadow
 {
     internal class CtfLobbyData : OnlineResource.ResourceData
     {
-        public List<OnlinePlayer> Militia;
+        public List<OnlinePlayer> Militia = new List<OnlinePlayer>(32);
 
-        public List<OnlinePlayer> IMC;
+        public List<OnlinePlayer> IMC = new List<OnlinePlayer>(32);
 
         public CtfLobbyData() { }
 
@@ -26,18 +22,20 @@ namespace RainMeadow
             [OnlineField]
             public bool isInGame;
 
-            [OnlineField]
-            public List<OnlinePlayer> Militia;
+            [OnlineField(nullable = true)]
+            public Generics.DynamicUnorderedUshorts Militia;
 
-            [OnlineField]
-            public List<OnlinePlayer> IMC;
+            [OnlineField(nullable = true)]
+            public Generics.DynamicUnorderedUshorts IMC;
+
+            public State() { }
 
             public State(CtfLobbyData ctfLobbyData, OnlineResource onlineResource)
             {
                 CTFGameMode gamemode = (onlineResource as Lobby).gameMode as CTFGameMode;
                 isInGame = RWCustom.Custom.rainWorld.processManager.currentMainLoop is RainWorldGame;
-                Militia = ctfLobbyData.Militia;
-                IMC = ctfLobbyData.IMC;
+                Militia = new(ctfLobbyData.Militia.Select(p => p.inLobbyId).ToList());
+                IMC = new(ctfLobbyData.IMC.Select(p => p.inLobbyId).ToList());
             }
 
             public override void ReadTo(OnlineResource.ResourceData res, OnlineResource resource)
@@ -46,8 +44,8 @@ namespace RainMeadow
                 CTFGameMode gamemode = (resource as Lobby).gameMode as CTFGameMode;
                 gamemode.isInGame = isInGame;
 
-                data.Militia = Militia;
-                data.IMC = IMC;
+                data.Militia = Militia.list.Select(i => OnlineManager.lobby.PlayerFromId(i)).Where(p => p != null).ToList();
+                data.IMC = IMC.list.Select(i => OnlineManager.lobby.PlayerFromId(i)).Where(p => p != null).ToList();
             }
 
             public override Type GetDataType() => typeof(CtfLobbyData);

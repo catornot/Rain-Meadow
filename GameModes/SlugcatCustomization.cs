@@ -5,10 +5,10 @@ namespace RainMeadow
 {
     public class SlugcatCustomization : AvatarData
     {
-        public Color bodyColor;
-        public Color eyeColor;
-        public SlugcatStats.Name playingAs;
-        public string nickname;
+        public Color bodyColor = Color.black;
+        public Color eyeColor = Color.black;
+        public SlugcatStats.Name playingAs = SlugcatStats.Name.White;
+        public string nickname = "NONE";
 
         public SlugcatCustomization() { }
 

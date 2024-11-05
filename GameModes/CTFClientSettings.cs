@@ -8,7 +8,7 @@ namespace RainMeadow
 {
     public class CTFClientSettings : OnlineEntity.EntityData
     {
-        public SlugcatStats.Name playingAs;
+        public SlugcatStats.Name playingAs = SlugcatStats.Name.White;
         public SlugTeam team = SlugTeam.Unassigned;
 
         public override EntityDataState MakeState(OnlineEntity onlineEntity, OnlineResource inResource)
@@ -19,7 +19,7 @@ namespace RainMeadow
         public class State : EntityDataState
         {
             [OnlineField]
-            public int team;
+            public int team = 0;
 
             public State() { }
             public State(CTFClientSettings storyClient) : base()

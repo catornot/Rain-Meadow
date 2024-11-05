@@ -25,6 +25,8 @@ namespace RainMeadow
 
         public CTFGameMode(Lobby lobby) : base(lobby)
         {
+            RainMeadow.Debug("Init CTF gamemode");
+
             avatarSettings = new SlugcatCustomization() { nickname = OnlineManager.mePlayer.id.name };
             ctfClientSettings = new CTFClientSettings();
             ctfClientSettings.playingAs = SlugcatStats.Name.White;
@@ -41,32 +43,8 @@ namespace RainMeadow
         }
         public override bool ShouldLoadCreatures(RainWorldGame game, WorldSession worldSession)
         {
-            return worldSession.owner == null || worldSession.isOwner;
-        }
-
-        public virtual bool ShouldRegisterAPO(OnlineResource resource, AbstractPhysicalObject apo)
-        {
-            return true;
-        }
-
-        public virtual bool ShouldSyncAPOInWorld(WorldSession ws, AbstractPhysicalObject apo)
-        {
-            return true;
-        }
-
-        public virtual bool ShouldSyncAPOInRoom(RoomSession rs, AbstractPhysicalObject apo)
-        {
-            return true;
-        }
-
-        public override bool ShouldSpawnFly(FliesWorldAI self, int spawnRoom)
-        {
-            return false;
-        }
-
-        public override SlugcatStats.Name GetStorySessionPlayer(RainWorldGame self)
-        {
-            return RainMeadow.Ext_SlugcatStatsName.OnlineSessionPlayer;
+            //return worldSession.owner == null || worldSession.isOwner;
+            return worldSession.isOwner;
         }
 
         public override SlugcatStats.Name LoadWorldAs(RainWorldGame game)
@@ -76,7 +54,7 @@ namespace RainMeadow
             game.manager.rainWorld.options.fpsCap = 120;
             game.manager.rainWorld.options.dlcTutorialShown = false;
             game.manager.rainWorld.options.friendlyLizards = false;
-            return SlugcatStats.Name.Red;
+            return SlugcatStats.Name.White;
         }
 
         public override ProcessManager.ProcessID MenuProcessId()
@@ -84,19 +62,9 @@ namespace RainMeadow
             return RainMeadow.Ext_ProcessID.CtfLobbyMenu;
         }
 
-        public override AbstractCreature SpawnAvatar(RainWorldGame self, WorldCoordinate location)
-        {
-            return null; // game runs default code
-        }
-
         public override void NewEntity(OnlineEntity oe, OnlineResource inResource)
         {
             base.NewEntity(oe, inResource);
-        }
-
-        public override void ConfigureAvatar(OnlineCreature onlineCreature)
-        {
-            onlineCreature.AddData(avatarSettings);
         }
 
         public override void ResourceAvailable(OnlineResource onlineResource)
@@ -107,11 +75,6 @@ namespace RainMeadow
             {
                 lobby.AddData(new CtfLobbyData());
             }
-        }
-
-        public override void ResourceActive(OnlineResource onlineResource)
-        {
-            base.ResourceActive(onlineResource);
         }
 
         public override bool PlayerCanOwnResource(OnlinePlayer from, OnlineResource onlineResource)
@@ -153,9 +116,13 @@ namespace RainMeadow
 
         public override void AddClientData()
         {
-            base.AddClientData();
-
             clientSettings.AddData(ctfClientSettings);
+        }
+
+        public override void ConfigureAvatar(OnlineCreature onlineCreature)
+        {
+            RainMeadow.Debug("why ? " + avatarSettings);
+            onlineCreature.AddData(avatarSettings);
         }
 
         public override void LobbyTick(uint tick)
