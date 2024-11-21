@@ -38,8 +38,6 @@ namespace RainMeadow.Ctf
                 Lobby lobby = OnlineManager.lobby;
                 lobby.owner.InvokeRPC(CtfRPCs.FlagCaptured, team, (lobby.gameMode as CTFGameMode).ctfdata.scoringIndex + 1);
             }
-
-            base.Ignite();
         }
 
         public override void WeaponDeflect(Vector2 inbetweenPos, Vector2 deflectDir, float bounceSpeed)

@@ -9,14 +9,14 @@ namespace RainMeadow.Ctf
 {
     internal class AbstractCtfFlag : AbstractPhysicalObject
     {
-        SlugTeam team; 
+        SlugTeam team;
 
-        public AbstractCtfFlag(World world, AbstractObjectType type, PhysicalObject realizedObject, WorldCoordinate pos, EntityID ID, SlugTeam team) : base(world, type, realizedObject, pos, ID)
+        public AbstractCtfFlag(World world, AbstractObjectType type, PhysicalObject realizedObject, WorldCoordinate pos, EntityID ID, SlugTeam team) : base(world, Ext_PhysicalObjectType.CtfFlag, realizedObject, pos, ID)
         {
             RainMeadow.Debug("Creating abstract ctfflag for " + team);
 
             if (type != Ext_PhysicalObjectType.CtfFlag)
-                    throw new InvalidProgrammerException("hmmmm");
+                throw new InvalidProgrammerException("hmmmm");
 
             type = Ext_PhysicalObjectType.CtfFlag;
             this.team = team;
@@ -25,7 +25,9 @@ namespace RainMeadow.Ctf
         public override void Realize()
         {
             RainMeadow.Debug("Relizing CtfFlag from abstract");
-            realizedObject = new CtfFlag(this, world, team);
+            base.Realize();
+            //if (realizedObject == null)
+                realizedObject = new CtfFlag(this, world, team);
         }
 
         public override void Destroy()
