@@ -5,5 +5,9 @@
 [ADD]RM_Scav_Call : rmscavcall/minVol=0.25/maxVol=0.33/minPitch=0.8/maxPitch=1.2
 [ADD]RM_Noot_Call/minPitch=0.6/maxPitch=0.8/minVol=0.3/maxVol=0.4/rangeFac=0.7 : bighonk1, bighonk2, bighonk3, bighonk4, bighonk5, bighonk6
 [ADD]RM_SmallNoot_Call/minVol=0.2/maxVol=0.4/pitch=1.4 : honk1, honk2, honk3, honk4, honk5, honk6, honk7
-[ADD]RM_Eggbug_Call : ShriekB/minVol=0.2/maxVol=0.3/minPitch=0.6/maxPitch=1.0
+[ADD]RM_Eggbug_Call : rmeggbugcall/minVol=0.2/maxVol=0.3/minPitch=0.6/maxPitch=1.0
 [ADD]RM_Mouse_Call : ShriekA/minVol=0.22/maxVol=0.3/minPitch=0.8/maxPitch=1.2
+[ADD]twentysecsilence : twentysecsilence
+[ADD]Kick : Kick
+[ADD]Snare : Snare
+[ADD]HiHat : HiHat

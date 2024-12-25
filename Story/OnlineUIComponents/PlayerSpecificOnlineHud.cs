@@ -85,6 +85,14 @@ namespace RainMeadow
             }
         }
 
+        public bool PlayerInAncientShelter
+        {
+            get
+            {
+                return abstractPlayer?.Room?.isAncientShelter ?? false;
+            }
+        }
+
         public bool PlayerInGate
         {
             get
@@ -124,7 +132,6 @@ namespace RainMeadow
             }
 
             this.found = false;
-
             if (camera.room == null || !camera.room.shortCutsReady) return;
             if (!clientSettings.inGame) return;
             if (clientSettings.avatars.Count == 0) return;
@@ -140,7 +147,7 @@ namespace RainMeadow
             if (this.playerDisplay == null)
             {
                 RainMeadow.Debug("adding player arrow for " + clientSettings.owner);
-                this.playerDisplay = new OnlinePlayerDisplay(this, customization);
+                this.playerDisplay = new OnlinePlayerDisplay(this, customization, clientSettings.owner);
                 this.parts.Add(this.playerDisplay);
             }
 
@@ -229,11 +236,11 @@ namespace RainMeadow
             lastCameraPos = camera.currentCameraPosition;
             lastAbstractRoom = camera.room.abstractRoom.index;
 
+
             if (this.antiDeathBumpFlicker > 0)
             {
                 this.antiDeathBumpFlicker--;
             }
-
             if (this.PlayerConsideredDead)
             {
                 if (this.antiDeathBumpFlicker < 1)
@@ -242,11 +249,14 @@ namespace RainMeadow
                     if (this.deadCounter == 10)
                     {
                         this.antiDeathBumpFlicker = 80;
-                        this.deathBump = new OnlinePlayerDeathBump(this);
+                        this.deathBump = new OnlinePlayerDeathBump(this, customization);
                         this.parts.Add(this.deathBump);
                     }
                 }
             }
+
+
+
             else if (this.lastDead)
             {
                 //Debug.Log("revivePlayer");

@@ -13,7 +13,8 @@
 			],
 			"problemMatcher": "$msCompile",
 			"group": {
-				"kind": "build"
+				"kind": "build",
+				"isDefault": true
 			}
 		},
 		{
@@ -24,6 +25,40 @@
 				"build",
 				"${workspaceFolder}/Rain Meadow.csproj",
 				"/property:Configuration=LocalP2P",
+				"/property:GenerateFullPaths=true",
+				"/consoleloggerparameters:NoSummary"
+			],
+			"problemMatcher": "$msCompile",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"label": "Story Build",
+			"command": "dotnet",
+			"type": "process",
+			"args": [
+				"build",
+				"${workspaceFolder}/Rain Meadow.csproj",
+				"/property:Configuration=StoryP2P",
+				"/property:GenerateFullPaths=true",
+				"/consoleloggerparameters:NoSummary"
+			],
+			"problemMatcher": "$msCompile",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"label": "Arena Build",
+			"command": "dotnet",
+			"type": "process",
+			"args": [
+				"build",
+				"${workspaceFolder}/Rain Meadow.csproj",
+				"/property:Configuration=ArenaP2P",
 				"/property:GenerateFullPaths=true",
 				"/consoleloggerparameters:NoSummary"
 			],

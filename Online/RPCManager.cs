@@ -37,15 +37,26 @@ namespace RainMeadow
 
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies().ToList())
             {
+                bool isMain = assembly == Assembly.GetExecutingAssembly();
                 try
                 {
-                    foreach (var type in assembly.GetTypes().ToList())
+                    foreach (var type in assembly.GetTypesSafely().ToList())
                     {
-                        RegisterRPCs(type);
+                        try
+                        {
+                            RegisterRPCs(type);
+                        }
+                        catch (Exception e)
+                        {
+                            RainMeadow.Error(assembly.FullName + ":" + type.FullName);
+                            if (isMain) throw e; 
+                            RainMeadow.Error(e);
+                        }
                     }
                 }
                 catch (Exception e)
                 {
+                    if (isMain) throw e;
                     RainMeadow.Error(e);
                 }
             }
@@ -150,8 +161,7 @@ namespace RainMeadow
                         ParameterExpression argVar = Expression.Variable(argType);
                         vars.Add(argVar);
                         expressions.Add(Expression.IfThen(Expression.Not(isReading), Expression.Assign(argVar, Expression.Convert(Expression.ArrayAccess(argsVar, Expression.Constant(i)), argType))));
-                        var serializerMethod = Serializer.GetSerializationMethod(argType, !argType.IsValueType || Nullable.GetUnderlyingType(argType) != null, true, true);
-                        if (serializerMethod == null)
+                        var serializerMethod = Serializer.GetSerializationMethod(argType, !(argType.IsValueType || (argType.IsArray && argType.GetElementType().IsValueType)) || Nullable.GetUnderlyingType(argType) != null, true, true); if (serializerMethod == null)
                         {
                             throw new NotSupportedException($"can't serialize parameter {args[i].ParameterType} on type {method} for {targetType}");
                         }

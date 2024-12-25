@@ -92,6 +92,7 @@ namespace RainMeadow
 
         public readonly AbstractPhysicalObject apo;
         public bool realized;
+        public bool lenientPos;
 
         public bool beingMoved;
         public static ConditionalWeakTable<AbstractPhysicalObject, OnlinePhysicalObject> map = new();
@@ -263,6 +264,8 @@ namespace RainMeadow
                     RainMeadow.Debug($"room join");
                     RainMeadow.Debug($"topos Tile defined? {topos.TileDefined}");
                     RainMeadow.Debug($"topos Node defined? {topos.NodeDefined}");
+
+                    newRoom.absroom.AddEntity(apo);
 
                     if (!poState.inDen && apo.pos.room != -1) // inden entities are basically abstracted so not added to the room
                                                               // room == -1 signals swallowed item which shouldn't be in room
@@ -486,6 +489,10 @@ namespace RainMeadow
             {
                 case FirecrackerPlant bomb:
                     bomb.Ignite(); return;
+                case JellyFish o:
+                    o.Tossed(null); return;
+                case Snail o:
+                    o.Click(); return;
                 default:
                     RainMeadow.Error($"unknown trigger {this}"); return;
             }
@@ -512,6 +519,8 @@ namespace RainMeadow
                     bomb.Explode(); return;
                 case MoreSlugcats.EnergyCell bomb:
                     bomb.Explode(); return;
+                case Player arti:
+                    arti.PyroDeath(); return;
                 default:
                     RainMeadow.Error($"unknown explode {this}"); return;
             }

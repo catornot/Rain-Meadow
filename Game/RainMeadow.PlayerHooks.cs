@@ -33,6 +33,7 @@ public partial class RainMeadow
         IL.Player.Collide += Player_Collide;
         On.Player.SlugSlamConditions += Player_SlugSlamConditions;
         IL.Player.ClassMechanicsArtificer += Player_ClassMechanicsArtificer;
+        IL.Player.PyroDeath += PhysicalObject_Explode;
         On.Player.CanMaulCreature += Player_CanMaulCreature;
         On.Player.AddFood += Player_AddFood;
         On.Player.AddQuarterFood += Player_AddQuarterFood;
@@ -107,12 +108,8 @@ public partial class RainMeadow
         orig(self);
         if (OnlineManager.lobby != null)
         {
-            if (
-                self.room.world.game.cameras[0] != null &&
-                self.room.world.game.cameras[0].hud != null &&
-                self.room.world.game.cameras[0].hud.textPrompt != null &&
-                self.room.world.game.cameras[0].hud.textPrompt.pausedMode ||
-                ChatHud.chatButtonActive)
+            if (self.controller is null && self.room.world.game.cameras[0]?.hud is HUD.HUD hud
+                && (hud.textPrompt?.pausedMode is true || hud.parts.OfType<ChatHud>().Any(x => x.chatInputActive)))
             {
                 PlayerMovementOverride.StopPlayerMovement(self);
             }
@@ -122,14 +119,11 @@ public partial class RainMeadow
                 if (arena.countdownInitiatedHoldFire)
                 {
                     PlayerMovementOverride.HoldFire(self);
-
                 }
 
                 ArenaHelpers.OverideSlugcatClassAbilities(self, arena);
-
             }
         }
-
     }
 
     private void Player_Update(ILContext il)
@@ -168,8 +162,8 @@ public partial class RainMeadow
                 {
                     if (OnlineManager.lobby.gameMode is MeadowGameMode) // meadow crashes with msc assuming slugpupbars is there
                         return false;
-                    if (OnlineManager.lobby.gameMode is StoryGameMode storyGameMode && storyGameMode.readyForWin)
-                        return true;
+                    //if (OnlineManager.lobby.gameMode is StoryGameMode storyGameMode && storyGameMode.readyForWin)
+                    //    return true;
                     if (!self.abstractCreature.IsLocal()) // don't shelter if remote
                         return false;
                 }
@@ -255,13 +249,13 @@ public partial class RainMeadow
             {
                 if (!OnlineManager.lobby.isOwner)
                 {
-                    OnlineManager.lobby.owner.InvokeOnceRPC(RPCs.ReinforceKarma);
+                    OnlineManager.lobby.owner.InvokeOnceRPC(StoryRPCs.ReinforceKarma);
                 }
                 foreach (OnlinePlayer player in OnlineManager.players)
                 {
                     if (!player.isMe)
                     {
-                        player.InvokeOnceRPC(RPCs.PlayReinforceKarmaAnimation);
+                        player.InvokeOnceRPC(StoryRPCs.PlayReinforceKarmaAnimation);
                     }
                 }
             }
@@ -408,7 +402,7 @@ public partial class RainMeadow
         if (!OnlineManager.lobby.isOwner && OnlineManager.lobby.gameMode is StoryGameMode)
         {
             var newFood = state.foodInStomach * 4 + state.quarterFoodPoints;
-            if (newFood != origFood) OnlineManager.lobby.owner.InvokeRPC(RPCs.ChangeFood, (short)(newFood - origFood));
+            if (newFood != origFood) OnlineManager.lobby.owner.InvokeRPC(StoryRPCs.ChangeFood, (short)(newFood - origFood));
         }
     }
 
@@ -431,7 +425,7 @@ public partial class RainMeadow
         if (!OnlineManager.lobby.isOwner && OnlineManager.lobby.gameMode is StoryGameMode)
         {
             var newFood = state.foodInStomach * 4 + state.quarterFoodPoints;
-            if (newFood != origFood) OnlineManager.lobby.owner.InvokeRPC(RPCs.ChangeFood, (short)(newFood - origFood));
+            if (newFood != origFood) OnlineManager.lobby.owner.InvokeRPC(StoryRPCs.ChangeFood, (short)(newFood - origFood));
         }
     }
 
@@ -454,7 +448,7 @@ public partial class RainMeadow
         if (!OnlineManager.lobby.isOwner && OnlineManager.lobby.gameMode is StoryGameMode)
         {
             var newFood = state.foodInStomach * 4 + state.quarterFoodPoints;
-            if (newFood != origFood) OnlineManager.lobby.owner.InvokeRPC(RPCs.ChangeFood, (short)(newFood - origFood));
+            if (newFood != origFood) OnlineManager.lobby.owner.InvokeRPC(StoryRPCs.ChangeFood, (short)(newFood - origFood));
         }
     }
 
@@ -478,7 +472,7 @@ public partial class RainMeadow
             if (!OnlinePhysicalObject.map.TryGetValue((grasp.grabber as Player).abstractPhysicalObject, out var onlineEntity)) throw new InvalidProgrammerException("Player doesn't have OnlineEntity counterpart!!");
             if (!onlineEntity.isMine) return;
 
-            OnlineManager.lobby.owner.InvokeOnceRPC(RPCs.AddMushroomCounter);
+            OnlineManager.lobby.owner.InvokeOnceRPC(StoryRPCs.AddMushroomCounter);
         }
     }
 

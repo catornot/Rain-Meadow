@@ -113,40 +113,6 @@ namespace RainMeadow
             this.skinProgressIcon = new TokenMenuDisplayer(this, this.pages[0], new Vector2(-1000f, -1000f), MeadowProgression.TokenBlueColor, $"{0}/{MeadowProgression.skinProgressTreshold}");
             this.pages[0].subObjects.Add(skinProgressIcon);
 
-            var cheatButton = new SimplerButton(this, mainPage, "CHEAT", new Vector2(200f, 90f), new Vector2(110f, 30f));
-            cheatButton.OnClick += (_) =>
-            {
-                if (manager.upcomingProcess != null) return;
-                for (int i = 0; i < 80; i++)
-                {
-                    MeadowProgression.CharacterProgress();
-                }
-                foreach (var character in MeadowProgression.allCharacters)
-                {
-                    MeadowProgression.progressionData.currentlySelectedCharacter = character;
-                    for (int i = 0; i < 80; i++)
-                    {
-                        MeadowProgression.EmoteProgress();
-                        MeadowProgression.SkinProgress();
-                    }
-                }
-                MeadowProgression.progressionData.currentlySelectedCharacter = MeadowProgression.allCharacters[ssm.slugcatPageIndex];
-                manager.RequestMainProcessSwitch(RainMeadow.Ext_ProcessID.MeadowMenu);
-            };
-            mainPage.subObjects.Add(cheatButton);
-
-            var resetButton = new SimplerButton(this, mainPage, "RESET", new Vector2(200f, 140f), new Vector2(110f, 30f));
-            resetButton.OnClick += (_) =>
-            {
-                if (manager.upcomingProcess != null) return;
-                MeadowProgression.progressionData = null;
-                MeadowProgression.LoadDefaultProgression();
-                playableCharacters = MeadowProgression.AllAvailableCharacters();
-                ssm.slugcatPageIndex = 0;
-                manager.RequestMainProcessSwitch(RainMeadow.Ext_ProcessID.MeadowMenu);
-            };
-            mainPage.subObjects.Add(resetButton);
-
             // read page state from progression
             ssm.slugcatPageIndex = playableCharacters.IndexOf(MeadowProgression.progressionData.currentlySelectedCharacter);
             if (ssm.slugcatPageIndex == -1)
@@ -160,11 +126,6 @@ namespace RainMeadow
             ReadCharacterSettings();
 
             UpdateCharacterUI();
-
-            if (manager.musicPlayer != null)
-            {
-                manager.musicPlayer.MenuRequestsSong("me", 1, 0);
-            }
         }
 
         private void UpdateCharacterUI()
@@ -217,6 +178,7 @@ namespace RainMeadow
         public override void Update()
         {
             base.Update();
+
             if (this.rainEffect != null)
             {
                 this.rainEffect.rainFade = Mathf.Min(0.3f, this.rainEffect.rainFade + 0.006f);
@@ -294,6 +256,8 @@ namespace RainMeadow
             if (OnlineManager.lobby == null || !OnlineManager.lobby.isActive) return;
 
             MeadowProgression.SaveProgression();
+
+            manager.musicPlayer?.song?.FadeOut(20f);
 
             manager.arenaSitting = null;
             manager.rainWorld.progression.ClearOutSaveStateFromMemory();

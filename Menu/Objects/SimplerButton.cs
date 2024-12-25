@@ -10,6 +10,7 @@ namespace RainMeadow
         {
             this.description = description;
         }
+
         private readonly string description;
         public string Description => description;
 
