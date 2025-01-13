@@ -1,5 +1,5 @@
 default:
-    just --list
+    just --list | fzf | xargs just
 local-list:
     echo "local p2p types:"
     echo "arena"
