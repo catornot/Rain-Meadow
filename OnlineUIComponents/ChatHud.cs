@@ -14,11 +14,16 @@ namespace RainMeadow
         private ChatInputOverlay? chatInputOverlay;
         public bool chatInputActive => chatInputOverlay is not null;
         private bool showChatLog = false;
-        
+
         public List<(string, string)> chatLog = new();
 
         public bool Active => game.processActive;
 
+        public static bool isLogToggled
+        {
+            get => RainMeadow.rainMeadowOptions.ChatLogOnOff.Value;
+            set => RainMeadow.rainMeadowOptions.ChatLogOnOff.Value = value;
+        }
         public ChatHud(HUD.HUD hud, RoomCamera camera) : base(hud)
         {
             textPrompt = hud.textPrompt;
@@ -28,9 +33,18 @@ namespace RainMeadow
             ChatLogManager.Subscribe(this);
             if (!ChatLogManager.shownChatTutorial)
             {
-                hud.textPrompt.AddMessage(hud.rainWorld.inGameTranslator.Translate($"Press 'Enter' to chat, press '{RainMeadow.rainMeadowOptions.ChatLogKey.Value}' to toggle the chat log"), 60, 160, false, true);
+                hud.textPrompt.AddMessage(hud.rainWorld.inGameTranslator.Translate($"Press '{RainMeadow.rainMeadowOptions.ChatButtonKey.Value}' to chat, press '{RainMeadow.rainMeadowOptions.ChatLogKey.Value}' to toggle the chat log"), 60, 320, true, true);
                 ChatLogManager.shownChatTutorial = true;
             }
+
+            if (isLogToggled)
+            {
+                RainMeadow.Debug("creating log");
+                chatLogOverlay = new ChatLogOverlay(this, game.manager, game);
+                showChatLog = true;
+            }
+
+            ChatTextBox.OnShutDownRequest += ShutDownChatInput;
         }
 
         public void AddMessage(string user, string message)
@@ -54,16 +68,18 @@ namespace RainMeadow
                 {
                     ShutDownChatLog();
                     showChatLog = false;
+                    isLogToggled = false;
                 }
                 else if (!textPrompt.pausedMode)
                 {
                     RainMeadow.Debug("creating log");
                     chatLogOverlay = new ChatLogOverlay(this, game.manager, game);
                     showChatLog = true;
+                    isLogToggled = true;
                 }
             }
 
-            if (Input.GetKeyDown(KeyCode.Return))
+            if (Input.GetKeyDown(RainMeadow.rainMeadowOptions.ChatButtonKey.Value))
             {
                 if (chatInputOverlay is not null)
                 {
@@ -109,6 +125,7 @@ namespace RainMeadow
 
         public void Destroy()
         {
+            ChatTextBox.OnShutDownRequest -= ShutDownChatInput;
             ChatLogManager.Unsubscribe(this);
         }
 

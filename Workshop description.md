@@ -26,6 +26,7 @@ The community-maintained mod compatibility spreadsheet can be found [here](https
 
 - Survivor campaign is available by default
 - Access other campaigns through the "Experimental Features" remix option
+  - Host can only play as the campaign slugcat
   - Clients can select slugcats other than the current campaign
 - Currently-supported campaigns: Survivor, Monk, Hunter, Artificer, Gourmand
 
@@ -71,5 +72,6 @@ FranklyGD - Programming, engine		MC41Games - Programming, menus		Silvyger - Prog
 Vigaro - Programming, menus		BitiLope - Programming, story		Pudgy Turtle - Programming, story
 ddemile - Programming, modsync		UO - Programming, story, arena		Saddest - Programming, UI, chat
 notchoc - Programming, story		phanie_ - Illustration			Timbits - Programming, UI, menus
-Zedreus - Programming, UI, story	Persondotexe - Programming, modsync	
+Zedreus - Programming, UI, story	Persondotexe - Programming, modsync	 invalidunits - Programming, UI, LAN
+forthfora - Programming, modsync
 ```

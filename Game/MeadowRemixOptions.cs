@@ -16,16 +16,39 @@ public class RainMeadowOptions : OptionInterface
     public readonly Configurable<KeyCode> SpectatorKey;
     public readonly Configurable<KeyCode> PointingKey;
     public readonly Configurable<KeyCode> ChatLogKey;
+    public readonly Configurable<KeyCode> ChatButtonKey;
+    public readonly Configurable<bool> ChatLogOnOff;
     public readonly Configurable<int> ArenaCountDownTimer;
     public readonly Configurable<int> ArenaSaintAscendanceTimer;
     public readonly Configurable<bool> ArenaSAINOT;
+    public readonly Configurable<bool> PainCatThrows;
+    public readonly Configurable<bool> PainCatEgg;
+    public readonly Configurable<bool> PainCatLizard;
+    public readonly Configurable<bool> BlockMaul;
+    public readonly Configurable<float> ArenaScrollSpeed;
 
+
+    public readonly Configurable<string> LanUserName;
+    public readonly Configurable<bool> DisableMeadowPauseAnimation;
+    public readonly Configurable<bool> StopMovementWhileSpectateOverlayActive;
+
+
+    public readonly Configurable<IntroRoll> PickedIntroRoll;
+
+    public enum IntroRoll
+    {
+        Meadow,
+        Vanilla,
+        Downpour
+    }
 
 
     private UIelement[] OnlineMeadowSettings;
     private UIelement[] GeneralUIArrPlayerOptions;
     private UIelement[] OnlineArenaSettings;
     private UIelement[] OnlineStorySettings;
+    private UIelement[] OnlineLANSettings;
+
 
 
     public RainMeadowOptions(global::RainMeadow.RainMeadow instance)
@@ -40,10 +63,23 @@ public class RainMeadowOptions : OptionInterface
         SpectatorKey = config.Bind("SpectatorKey", KeyCode.Tab);
         PointingKey = config.Bind("PointingKey", KeyCode.Mouse0);
         ChatLogKey = config.Bind("ChatLogKey", KeyCode.Comma);
+        ChatButtonKey = config.Bind("ChatButtonKey", KeyCode.Return);
+        ChatLogOnOff = config.Bind("ChatLogOnOff", true);
         ArenaCountDownTimer = config.Bind("ArenaCountDownTimer", 300);
         ArenaSaintAscendanceTimer = config.Bind("ArenaSaintAscendanceTimer", 260);
         ArenaSAINOT = config.Bind("ArenaSAINOT", false);
+        PainCatThrows = config.Bind("PainCatThrows", false);
+        PainCatEgg = config.Bind("PainCatEgg", true);
+        PainCatLizard = config.Bind("PainCatLizard", true);
+        BlockMaul = config.Bind("BlockMaul", false);
+        ArenaScrollSpeed =  config.Bind("ArenaScrollSpeed", 10f);
 
+
+        PickedIntroRoll = config.Bind("PickedIntroRoll", IntroRoll.Meadow);
+        LanUserName = config.Bind("LanUserName", "");
+
+        DisableMeadowPauseAnimation = config.Bind("DisableMeadowPauseAnimation", false);
+        StopMovementWhileSpectateOverlayActive = config.Bind("StopMovementWhileSpectateOverlayActive", false);
 
     }
 
@@ -55,10 +91,11 @@ public class RainMeadowOptions : OptionInterface
             OpTab opTab = new OpTab(this, "General");
             OpTab arenaTab = new OpTab(this, "Arena");
             OpTab storyTab = new OpTab(this, "Story");
-            
+            OpTab lanTab = new OpTab(this, "LAN");
 
 
-            Tabs = new OpTab[4] { meadowTab, opTab, arenaTab, storyTab };
+
+            Tabs = new OpTab[5] { meadowTab, opTab, arenaTab, storyTab, lanTab };
 
             List<UIelement> meadowCheats;
             OpTextBox meadowCheatBox;
@@ -70,6 +107,10 @@ public class RainMeadowOptions : OptionInterface
             OnlineMeadowSettings = new UIelement[]
             {
                 new OpLabel(10f, 550f, "Meadow", bigText: true),
+
+                new OpLabel(10f, 505f, Translate("Disable Pause Menu Animation"), bigText: false),
+                new OpCheckBox(DisableMeadowPauseAnimation, new Vector2(10f, 480f)),
+                new OpLabel(40f, 480f, RWCustom.Custom.ReplaceLineDelimeters(Translate("If selected, disables the sway animation in the pause menu"))),
 
                 meadowCheatBox = new OpTextBox(config.Bind("",""), new Vector2(10f, cheaty), 80f),
                 new OpLabel(110f, cheaty, "Input \"cheats\" to access cheats"),
@@ -86,11 +127,15 @@ public class RainMeadowOptions : OptionInterface
             meadowCheatBox.OnValueChanged += (UIconfig config, string value, string oldValue) => { if (value == "cheats") meadowCheats.ForEach(cheat => cheat.Show()); else meadowCheats.ForEach(cheat => cheat.Hide()); };
             cheatEmote.OnClick += (UIfocusable trigger) => { trigger.Menu.PlaySound(SoundID.HUD_Game_Over_Prompt); if (MeadowProgression.NextUnlockableEmote() != null) while (MeadowProgression.EmoteProgress() == null) ; (trigger as OpSimpleButton).greyedOut = MeadowProgression.NextUnlockableEmote() == null; };
             cheatSkin.OnClick += (UIfocusable trigger) => { trigger.Menu.PlaySound(SoundID.HUD_Game_Over_Prompt); if (MeadowProgression.NextUnlockableSkin() != null) while (MeadowProgression.SkinProgress() == null) ; (trigger as OpSimpleButton).greyedOut = MeadowProgression.NextUnlockableSkin() == null; };
-            cheatCharacter.OnClick += (UIfocusable trigger) => { trigger.Menu.PlaySound(SoundID.HUD_Game_Over_Prompt); if (MeadowProgression.NextUnlockableCharacter() != null) while (MeadowProgression.CharacterProgress() == null) ;  (trigger as OpSimpleButton).greyedOut = MeadowProgression.NextUnlockableCharacter() == null; };
+            cheatCharacter.OnClick += (UIfocusable trigger) => { trigger.Menu.PlaySound(SoundID.HUD_Game_Over_Prompt); if (MeadowProgression.NextUnlockableCharacter() != null) while (MeadowProgression.CharacterProgress() == null) ; (trigger as OpSimpleButton).greyedOut = MeadowProgression.NextUnlockableCharacter() == null; };
             cheatReset.OnClick += (UIfocusable trigger) => { trigger.Menu.PlaySound(SoundID.HUD_Karma_Reinforce_Flicker); MeadowProgression.progressionData = null; MeadowProgression.LoadDefaultProgression(); cheatEmote.greyedOut = cheatSkin.greyedOut = cheatCharacter.greyedOut = false; };
 
             meadowTab.AddItems(OnlineMeadowSettings);
-            GeneralUIArrPlayerOptions = new UIelement[13]
+
+            OpComboBox2 introroll;
+            OpLabel downpourWarning;
+
+            GeneralUIArrPlayerOptions = new UIelement[]
             {
                 new OpLabel(10f, 550f, "General", bigText: true),
                 new OpLabel(10f, 530f, "Note: These inputs are not used in Meadow mode", bigText: false),
@@ -100,18 +145,30 @@ public class RainMeadowOptions : OptionInterface
                 new OpKeyBinder(FriendsListKey, new Vector2(10f, 460f), new Vector2(150f, 30f)),
 
                 new OpLabel(10f, 400f, "Username Toggle", bigText: false),
-                new OpCheckBox(FriendViewClickToActivate, new Vector2(10f, 380f)),
+                new OpCheckBox(FriendViewClickToActivate, new Vector2(10f, 375f)),
                 new OpLabel(40f, 385, RWCustom.Custom.ReplaceLineDelimeters("If selected, replaces holding to toggling to view usernames")),
 
                 new OpLabel(10, 320f, "Key used for toggling spectator mode"),
                 new OpKeyBinder(SpectatorKey, new Vector2(10f, 280f), new Vector2(150f, 30f)),
 
-                new OpLabel(10, 245f, "Pointing"),
-                new OpKeyBinder(PointingKey, new Vector2(10f, 215), new Vector2(150f, 30f)),
+                new OpLabel(10, 245f, "Stop Inputs While Spectating"),
+                new OpCheckBox(StopMovementWhileSpectateOverlayActive, new Vector2(10f, 220f)),
 
                 new OpLabel(10, 180f, "Chat Log Toggle"),
                 new OpKeyBinder(ChatLogKey, new Vector2(10f, 150), new Vector2(150f, 30f)),
+
+                new OpLabel(210, 180f, "Chat Talk Button"),
+                new OpKeyBinder(ChatButtonKey, new Vector2(210f, 150), new Vector2(150f, 30f)),
+
+                new OpLabel(410, 180f, "Chat Log On/Off"),
+                new OpCheckBox(ChatLogOnOff, new Vector2(440f, 150f)),
+
+                new OpLabel(10, 120, "Introroll"),
+                introroll = new OpComboBox2(PickedIntroRoll, new Vector2(10, 90f), 160f, OpResourceSelector.GetEnumNames(null, typeof(IntroRoll)).Select(li => { li.displayName = Translate(li.displayName); return li; }).ToList()) { colorEdge = Menu.MenuColorEffect.rgbWhite },
+                downpourWarning = new OpLabel(10, 60, "Downpour DLC is not activated, vanilla intro will be used instead"),
             };
+            introroll.OnValueChanged += (UIconfig config, string value, string oldValue) => { if (value == "Downpour" && introroll.Menu.manager.rainWorld.dlcVersion == 0) downpourWarning.Show(); else downpourWarning.Hide(); };
+            downpourWarning.Hidden = PickedIntroRoll.Value != IntroRoll.Downpour && introroll.Menu.manager.rainWorld.dlcVersion == 0;
 
             opTab.AddItems(GeneralUIArrPlayerOptions);
 
@@ -142,7 +199,8 @@ public class RainMeadowOptions : OptionInterface
 
 
 
-            OnlineArenaSettings = new UIelement[7]
+            OnlineArenaSettings = new UIelement[17]
+
             {
                 new OpLabel(10f, 550f, "Arena", bigText: true),
                 new OpLabel(10f, 505, "Countdown timer. 60 == 1s", bigText: false),
@@ -158,12 +216,44 @@ public class RainMeadowOptions : OptionInterface
                 new OpTextBox(ArenaSaintAscendanceTimer, new Vector2(10, 385), 160f)
                 {
                     accept = OpTextBox.Accept.Int
-                }
+                },
+                new OpLabel(10f, 350, "Inv: Enable spear throws at 0 throw skill", bigText: false),
+                new OpCheckBox(PainCatThrows, new Vector2(10f, 315)),
+
+                new OpLabel(10f, 285, "Inv: Enable egg at 0 throw skill", bigText: false),
+                new OpCheckBox(PainCatEgg, new Vector2(10f, 250)),
+
+
+                new OpLabel(10f, 215, "Inv: Enable ???", bigText: false),
+                new OpCheckBox(PainCatLizard, new Vector2(10f, 185)),
+
+                new OpLabel(10f, 160, "Mauling: Disable", bigText: false),
+                new OpCheckBox(BlockMaul, new Vector2(10f, 125)),
+
+                new OpLabel(10f, 100, "Player Result Scroll Speed", bigText: false),
+                new OpTextBox(ArenaScrollSpeed, new Vector2(10, 75), 160f)
+                {
+                    accept = OpTextBox.Accept.Float
+                },
 
         };
             arenaTab.AddItems(OnlineArenaSettings);
 
+            OnlineLANSettings = new UIelement[3]
+            {
+                new OpLabel(10f, 550f, "LAN", bigText: true),
+                new OpLabel(10f, 505, "Username", bigText: false),
+
+                new OpTextBox(LanUserName, new Vector2(10f, 480), 160f)
+                {
+                    accept = OpTextBox.Accept.StringASCII
+                }
+
+        };
+            lanTab.AddItems(OnlineLANSettings);
+
         }
+
         catch (Exception ex)
         {
             RainMeadow.RainMeadow.Error("Error opening RainMeadow Options Menu" + ex);

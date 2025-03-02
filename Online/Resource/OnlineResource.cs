@@ -15,7 +15,7 @@ namespace RainMeadow
 
         public List<OnlineResource> subresources;
 
-        public bool isOwner => owner != null && owner.isMe;
+        public bool isOwner => (owner is not null) && owner.isMe;
         public bool isSupervisor => super.isOwner;
         public OnlinePlayer supervisor => super.owner;
 
@@ -29,7 +29,7 @@ namespace RainMeadow
 
         public bool canRelease => !isPending // no ongoing transaction
             && (!isActive || !subresources.Any(s => s.isAvailable || s.isPending)) // no subresource available or pending
-            && (!isOwner || participants.All(p => p.isMe || p.recentlyAckdTicks.Any(rt => NetIO.IsNewer(rt, lastModified)))); // state broadcasted
+            && (!isOwner || participants.All(p => p.isMe || p.recentlyAckdTicks.Any(rt => EventMath.IsNewer(rt, lastModified)))); // state broadcasted
 
         public uint lastModified; // local tick used locally by owner only to ensure state is broadcasted
 
@@ -99,6 +99,8 @@ namespace RainMeadow
             isWaitingForState = true;
         }
 
+        public static event Action<OnlineResource>? OnAvailable;
+
         protected abstract void AvailableImpl();
 
         // The online resource has been leased and its state is available
@@ -113,6 +115,8 @@ namespace RainMeadow
             AvailableImpl();
 
             OnlineManager.lobby.gameMode.ResourceAvailable(this);
+
+            OnAvailable?.Invoke(this);
         }
 
         protected abstract void ActivateImpl();
@@ -234,6 +238,8 @@ namespace RainMeadow
             resourceData = new();
         }
 
+        public static event Action<OnlineResource, OnlinePlayer>? OnNewOwner;
+
         protected void NewOwner(OnlinePlayer newOwner)
         {
             RainMeadow.Debug($"{this} - '{(newOwner != null ? newOwner : "null")}'");
@@ -291,6 +297,8 @@ namespace RainMeadow
                     if (ent.isMine) ent.JoinOrLeavePending();
                 }
             }
+
+            OnNewOwner?.Invoke(this, newOwner);
         }
 
         protected void LeaseModified()
@@ -321,8 +329,9 @@ namespace RainMeadow
             }
         }
 
-        protected virtual void NewParticipantImpl(OnlinePlayer player) { }
+        public static event Action<OnlineResource, OnlinePlayer>? OnNewParticipant;
 
+        protected virtual void NewParticipantImpl(OnlinePlayer player) { }
         private void NewParticipant(OnlinePlayer newParticipant)
         {
             if (participants.Contains(newParticipant) || newParticipant.hasLeft) return;
@@ -343,7 +352,11 @@ namespace RainMeadow
             }
 
             NewParticipantImpl(newParticipant);
+
+            OnNewParticipant?.Invoke(this, newParticipant);
         }
+
+        public static event Action<OnlineResource, OnlinePlayer>? OnParticipantLeft;
 
         protected virtual void ParticipantLeftImpl(OnlinePlayer player) { }
         private void ParticipantLeft(OnlinePlayer participant)
@@ -368,6 +381,7 @@ namespace RainMeadow
                 PerformRequests();
             }
             ParticipantLeftImpl(participant);
+            OnParticipantLeft?.Invoke(this, participant);
         }
 
         protected void SanitizeSubresources()
@@ -431,7 +445,7 @@ namespace RainMeadow
             if (this is Lobby lobby && owner == player) // lobby owner has left
             {
                 RainMeadow.Debug($"Lobby owner {player} left!!!");
-                NewOwner(MatchmakingManager.instance.GetLobbyOwner());
+                NewOwner(MatchmakingManager.currentInstance.GetLobbyOwner());
             }
 
             // first transfer recursivelly, then remove recursivelly
@@ -469,7 +483,7 @@ namespace RainMeadow
             if (!isSupervisor) throw new InvalidProgrammerException("not supervisor");
             OnlinePlayer newOwner;
 
-            newOwner = MatchmakingManager.instance.BestTransferCandidate(this, participants);
+            newOwner = MatchmakingManager.currentInstance.BestTransferCandidate(this, participants);
 
             if (newOwner != owner)
             {
